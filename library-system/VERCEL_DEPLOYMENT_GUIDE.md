@@ -166,7 +166,7 @@ Visit: `https://your-backend.railway.app/api/health/`
 ### Step 3: Configure Project
 
 1. **Framework Preset**: Next.js (auto-detected)
-2. **Root Directory**: Click "Edit" → Select `library system/frontend`
+2. **Root Directory**: Click "Edit" → Select `library-system/frontend`
 3. **Build Command**: `npm run build` (default)
 4. **Output Directory**: `.next` (default)
 5. **Install Command**: `npm install` (default)
@@ -299,7 +299,7 @@ python manage.py collectstatic --noinput
 Vercel deployed the repository root instead of the Next.js app.
 
 **Solution**:
-1. In Vercel Project Settings, set **Root Directory** to `library system/frontend`
+1. In Vercel Project Settings, set **Root Directory** to `library-system/frontend`
 2. Redeploy after the GitHub repository is updated
 
 ### Issue: Uploaded Images Disappear After Redeploy
