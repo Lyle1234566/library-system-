@@ -55,7 +55,6 @@ import {
   BellRing,
   X,
   ArrowUpRight,
-  ArrowLeft,
   Clock3,
   ReceiptText,
   MessageSquare,
@@ -1902,15 +1901,6 @@ export default function LibrarianDeskPage() {
             }`}
           >
             <div className="flex flex-col gap-3">
-              <Link
-                href="/"
-                onClick={() => setIsDeskMenuOpen(false)}
-                className="inline-flex items-center gap-2 rounded-[16px] border border-white/10 bg-transparent px-3 py-2 text-[12px] font-medium text-white/72 transition hover:border-cyan-300/20 hover:bg-white/[0.03] hover:text-white"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Back to Landing Page
-              </Link>
-
               <div className="flex items-start justify-between gap-3">
                 <Link
                   href="/"
@@ -2011,9 +2001,14 @@ export default function LibrarianDeskPage() {
           </aside>
 
           <div className="flex min-h-screen flex-1 flex-col bg-gradient-to-b from-[#031020] via-[#07101d] to-[#0a1322] md:pl-[220px]">
-            <header className="sticky top-0 z-20 border-b border-white/10 bg-[#060d18]/82 backdrop-blur-2xl">
-              <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5 lg:px-7">
-                <div className="flex items-center gap-2.5">
+            <header className="sticky top-0 z-20 border-b border-white/10 bg-[linear-gradient(180deg,rgba(4,11,24,0.94)_0%,rgba(6,14,28,0.88)_100%)] shadow-[0_18px_50px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
+              <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                <div className="absolute left-[14%] top-[-5rem] h-28 w-28 rounded-full bg-sky-400/12 blur-3xl" />
+                <div className="absolute left-[26%] top-[-4rem] h-24 w-24 rounded-full bg-blue-500/10 blur-3xl" />
+                <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-sky-300/25 to-transparent" />
+              </div>
+              <div className="relative flex items-center justify-between gap-4 px-4 py-3 sm:px-5 lg:px-7">
+                <div className="flex min-w-0 items-center gap-3.5">
                   <button
                     type="button"
                     onClick={() => setIsDeskMenuOpen(true)}
@@ -2021,17 +2016,25 @@ export default function LibrarianDeskPage() {
                   >
                     <PanelLeft className="h-4 w-4" />
                   </button>
+                  <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-[20px] border border-sky-300/18 bg-[linear-gradient(135deg,rgba(14,165,233,0.16),rgba(59,130,246,0.10)_55%,rgba(15,23,42,0.18))] text-sky-100 shadow-[0_16px_34px_rgba(14,165,233,0.16)] sm:inline-flex">
+                    <Library className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h1 className="truncate text-[1.15rem] font-bold tracking-[-0.02em] text-white sm:text-[1.45rem] lg:text-[1.75rem]">
+                        Librarian Desk
+                      </h1>
+                      <span className="hidden rounded-full border border-sky-300/20 bg-sky-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-sky-100/90 lg:inline-flex">
+                        Live Desk
+                      </span>
+                    </div>
+                    <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-slate-300/72 sm:text-[12px] lg:text-[12.5px]">
+                      Manage daily library operations, book transactions, and user activities
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2.5">
-                  <Link
-                    href="/"
-                    aria-label="Back to landing page"
-                    className="inline-flex items-center gap-2 rounded-[18px] border border-white/10 bg-white/[0.05] px-3 py-2 text-[13px] font-medium text-white/75 transition hover:bg-white/[0.09] hover:text-white"
-                  >
-                    <ArrowLeft className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Back</span>
-                  </Link>
+                <div className="flex shrink-0 items-center gap-2.5">
                   <button
                     type="button"
                     onClick={focusDashboardNotifications}
