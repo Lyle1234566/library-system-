@@ -1,0 +1,28 @@
+export const webTheme = {
+  colors: {
+    pageBg: "#f6f8fc",
+    pageBgStrong: "#e7eef9",
+    surface: "#ffffff",
+    surfaceMuted: "#eef3fb",
+    ink: "#11233f",
+    inkMuted: "#64748b",
+    line: "#d7e0ef",
+    accent: "#D4AF37",
+    accentStrong: "#B88E17",
+    accentCool: "#3b82f6",
+    accentCoolStrong: "#143C78",
+    darkBg: "#0b1f44",
+    darkSurface: "#102b59",
+    darkSurfaceStrong: "#153468",
+    darkInk: "#e8f1ff",
+    darkInkMuted: "#adc1e1",
+    darkLine: "#294878",
+  },
+  radius: {
+    xl: 24,
+    lg: 18,
+    md: 14,
+    sm: 10,
+    pill: 999,
+  },
+};

@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Salazar Library System",
+    "slug": "salazar-library-mobile",
+    "version": "1.0.0",
+    "platforms": ["ios", "android"],
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "usesCleartextTraffic": true,
+      "permissions": ["INTERNET"],
+      "adaptiveIcon": {
+        "backgroundColor": "#0d2a4d"
+      }
+    }
+  }
+}

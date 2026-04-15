@@ -1,0 +1,44 @@
+# OS and editor
+.DS_Store
+desktop.ini
+
+# Environment files
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+backend/venv/
+backend/db.sqlite3
+**/*.sqlite3
+
+# Django generated assets
+backend/media/
+backend/staticfiles/
+backend/runserver.out.log
+backend/runserver.err.log
+backend/_deploy_check_media/
+
+# Node / web / mobile
+frontend/node_modules/
+mobile/node_modules/
+frontend/.next/
+frontend/.vercel/
+mobile/.expo/
+mobile/dist/
+frontend/*.tsbuildinfo
+
+# Logs
+*.log
+*.out
+*.err
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local tooling
+.sixth/
