@@ -307,6 +307,17 @@ const normalizeErrorMessage = (response: Response, data: unknown, text: string):
   return `HTTP error! status: ${response.status}`;
 };
 
+const normalizeNetworkError = (error: unknown): string => {
+  if (error instanceof Error) {
+    const message = error.message.trim();
+    if (!message || message.toLowerCase() === 'failed to fetch') {
+      return 'Unable to reach the API. Check the Vercel API URL, Render backend status, and Render CORS settings.';
+    }
+    return message;
+  }
+  return 'Network error. Please try again.';
+};
+
 // Auth API
 export const authApi = {
   // Login user with ID (student or staff)
@@ -380,7 +391,7 @@ export const authApi = {
       return {
         user: null,
         tokens: null,
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
         otpChallenge: null,
         message: null,
       };
@@ -478,7 +489,7 @@ export const authApi = {
       return {
         user: null,
         tokens: null,
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
         otpChallenge: null,
         requiresApproval: false,
         emailVerified: false,
@@ -580,7 +591,7 @@ export const authApi = {
       return {
         message: '',
         email: undefined,
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
       };
     }
   },
@@ -664,7 +675,7 @@ export const authApi = {
       return {
         user: null,
         tokens: null,
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
         otpChallenge: null,
         requiresApproval: false,
         emailVerified: false,
@@ -717,7 +728,7 @@ export const authApi = {
         message: '',
         email: null,
         otpSession: null,
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
       };
     }
   },
@@ -780,7 +791,7 @@ export const authApi = {
     } catch (error) {
       return {
         message: '',
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
         codeLength: undefined,
         expiresInMinutes: undefined,
         debugCode: undefined,
@@ -826,7 +837,7 @@ export const authApi = {
     } catch (error) {
       return {
         message: '',
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
       };
     }
   },
@@ -865,7 +876,7 @@ export const authApi = {
     } catch (error) {
       return {
         message: '',
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
       };
     }
   },
@@ -927,7 +938,7 @@ export const authApi = {
       return {
         user: null,
         tokens: null,
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
       };
     }
   },
@@ -976,7 +987,7 @@ export const authApi = {
     } catch (error) {
       return {
         message: '',
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
       };
     }
   },
@@ -1019,7 +1030,7 @@ export const authApi = {
     } catch (error) {
       return {
         user: null,
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
       };
     }
   },
@@ -1062,7 +1073,7 @@ export const authApi = {
     } catch (error) {
       return {
         data: null,
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
       };
     }
   },
@@ -1108,7 +1119,7 @@ export const authApi = {
     } catch (error) {
       return {
         data: null,
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
       };
     }
   },
@@ -1174,7 +1185,7 @@ export const authApi = {
       return {
         user: null,
         tokens: null,
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
       };
     }
   },
@@ -1237,7 +1248,7 @@ export const authApi = {
       return {
         user: null,
         tokens: null,
-        error: error instanceof Error ? error.message : 'Network error. Please try again.',
+        error: normalizeNetworkError(error),
       };
     }
   },
