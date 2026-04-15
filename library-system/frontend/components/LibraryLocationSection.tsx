@@ -31,6 +31,10 @@ export default function LibraryLocationSection() {
   const [liveLocation, setLiveLocation] = useState<LiveLocation | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const watchIdRef = useRef<number | null>(null);
+  const goldPrimaryButtonClass =
+    'inline-flex w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold text-[#1a1b1f] transition-all duration-300 sm:w-auto hover:-translate-y-0.5';
+  const goldSecondaryButtonClass =
+    'inline-flex w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-300 sm:w-auto hover:-translate-y-0.5';
 
   const stopTracking = () => {
     if (watchIdRef.current !== null) {
@@ -132,11 +136,19 @@ export default function LibraryLocationSection() {
             <button
               type="button"
               onClick={tracking ? stopTracking : startTracking}
-              className={`inline-flex w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-300 sm:w-auto ${
+              className={`${tracking ? goldSecondaryButtonClass : goldPrimaryButtonClass} ${
                 tracking
-                  ? 'bg-sky-400 text-[#0b1324] hover:bg-sky-300'
-                  : 'bg-amber-500 text-[#1a1b1f] shadow-[0_16px_30px_rgba(251,191,36,0.24)] hover:-translate-y-0.5 hover:bg-amber-400'
+                  ? 'border border-amber-200/18 bg-[linear-gradient(135deg,rgba(146,64,14,0.88)_0%,rgba(180,83,9,0.84)_45%,rgba(120,53,15,0.9)_100%)] text-amber-50 shadow-[0_16px_34px_rgba(120,53,15,0.24)] hover:border-amber-200/28 hover:text-white'
+                  : 'shadow-[0_16px_34px_rgba(212,175,55,0.28),0_4px_10px_rgba(0,0,0,0.24)]'
               }`}
+              style={
+                tracking
+                  ? undefined
+                  : {
+                      background:
+                        'linear-gradient(135deg, #f59e0b 0%, #d4af37 40%, #fbbf24 70%, #f59e0b 100%)',
+                    }
+              }
             >
               {tracking ? 'Stop Live Tracking' : 'Start Live Tracking'}
             </button>
@@ -144,7 +156,7 @@ export default function LibraryLocationSection() {
               href={directionsUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex w-full items-center justify-center rounded-full border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:border-white/35 hover:bg-white/15 sm:w-auto"
+              className={`${goldSecondaryButtonClass} border border-amber-200/16 bg-[linear-gradient(135deg,rgba(245,158,11,0.18)_0%,rgba(212,175,55,0.12)_46%,rgba(15,23,42,0.14)_100%)] text-amber-50 shadow-[0_14px_28px_rgba(212,175,55,0.10)] hover:border-amber-200/28 hover:bg-[linear-gradient(135deg,rgba(245,158,11,0.24)_0%,rgba(212,175,55,0.16)_46%,rgba(15,23,42,0.16)_100%)]`}
             >
               Open Live Directions
             </a>
@@ -152,7 +164,7 @@ export default function LibraryLocationSection() {
               href={MAP_PLACE_URL}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex w-full items-center justify-center rounded-full border border-white/20 bg-transparent px-5 py-2.5 text-sm font-semibold text-white/85 transition-colors duration-300 hover:text-white sm:w-auto"
+              className={`${goldSecondaryButtonClass} border border-amber-200/12 bg-[rgba(212,175,55,0.08)] text-amber-100/92 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-amber-200/24 hover:bg-[rgba(212,175,55,0.14)] hover:text-white`}
             >
               Open Full Map
             </a>

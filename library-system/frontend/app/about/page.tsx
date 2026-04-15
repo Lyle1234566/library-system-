@@ -87,7 +87,10 @@ export default function AboutPage() {
               </div>
               <Link
                 href="/books"
-                className="inline-flex items-center justify-center rounded-full bg-amber-500 px-5 py-2.5 text-sm font-semibold text-[#1a1b1f] shadow-[0_16px_30px_rgba(251,191,36,0.3)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-amber-400"
+                className="inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold text-[#1a1b1f] shadow-[0_16px_34px_rgba(212,175,55,0.28),0_4px_10px_rgba(0,0,0,0.24)] transition-all duration-300 hover:-translate-y-0.5"
+                style={{
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d4af37 40%, #fbbf24 70%, #f59e0b 100%)',
+                }}
               >
                 Browse books
               </Link>
