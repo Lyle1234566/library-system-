@@ -4,7 +4,6 @@ from datetime import timedelta
 import logging
 
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives, send_mail
 from django.apps import apps
 from django.db import models
 from django.db.models import Q, Sum
@@ -13,6 +12,7 @@ from django.dispatch import receiver
 from django.utils.html import escape
 from django.utils import timezone
 
+from backend.email_bridge import send_application_email
 
 logger = logging.getLogger(__name__)
 
@@ -503,7 +503,6 @@ class BorrowRequest(models.Model):
 
         reminder_days = self.get_due_soon_reminder_days()
         late_fee_per_day = self.get_late_fee_per_day()
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@salazar-library.local')
         due_date_label = self.due_date.strftime('%B %d, %Y')
         my_books_url = f"{self.get_library_portal_url()}/my-books"
 
@@ -540,14 +539,13 @@ class BorrowRequest(models.Model):
             </div>
         """
 
-        message = EmailMultiAlternatives(
-            subject,
-            body,
-            from_email,
-            [recipient],
+        send_application_email(
+            to=[recipient],
+            subject=subject,
+            text=body,
+            html=html_body,
+            fail_silently=False,
         )
-        message.attach_alternative(html_body, "text/html")
-        message.send(fail_silently=False)
         self.due_soon_reminder_sent_at = timezone.now()
         self.save(update_fields=['due_soon_reminder_sent_at'])
         create_user_notification(
@@ -1126,16 +1124,15 @@ def notify_next_pending_reservation(book: Book):
     recipient = getattr(next_pending.user, 'email', None)
     if recipient:
         try:
-            send_mail(
+            send_application_email(
+                to=[recipient],
                 subject=f"Reserved book available: {book.title}",
-                message=(
+                text=(
                     f"Hi {next_pending.user.full_name or next_pending.user.username},\n\n"
                     f"Your reserved book '{book.title}' is now available.\n"
                     f"Please borrow it before {expires_label}.\n\n"
                     "Salazar Library System"
                 ),
-                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@salazar-library.local'),
-                recipient_list=[recipient],
                 fail_silently=True,
             )
         except Exception:

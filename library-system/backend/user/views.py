@@ -7,7 +7,6 @@ import math
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 from django.core import signing
-from django.core.mail import EmailMultiAlternatives
 from django.core.signing import BadSignature, SignatureExpired
 from django.core.cache import cache
 from django.db import transaction
@@ -32,6 +31,11 @@ from .models import (
     LoginOTPCode,
 )
 from .registration_rules import get_identifier_status
+from backend.email_bridge import (
+    get_email_bridge_config_error,
+    is_email_bridge_configured,
+    send_application_email,
+)
 
 from .serializers import (
     UserSerializer,
@@ -343,16 +347,13 @@ def send_reset_code(email: str, code: str) -> None:
           <p>If you did not request a password reset, you can ignore this email.</p>
         </div>
     """
-    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@salazar-library.local')
-
-    message = EmailMultiAlternatives(
-        subject,
-        body,
-        from_email,
-        [email],
+    send_application_email(
+        to=[email],
+        subject=subject,
+        text=body,
+        html=html_body,
+        fail_silently=False,
     )
-    message.attach_alternative(html_body, "text/html")
-    message.send(fail_silently=False)
 
 
 def send_login_otp_code(email: str, code: str) -> None:
@@ -372,16 +373,13 @@ def send_login_otp_code(email: str, code: str) -> None:
           <p>If you did not attempt to login, please secure your account immediately.</p>
         </div>
     """
-    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@salazar-library.local')
-
-    message = EmailMultiAlternatives(
-        subject,
-        body,
-        from_email,
-        [email],
+    send_application_email(
+        to=[email],
+        subject=subject,
+        text=body,
+        html=html_body,
+        fail_silently=False,
     )
-    message.attach_alternative(html_body, "text/html")
-    message.send(fail_silently=False)
 
 
 def send_verification_code(email: str, code: str) -> None:
@@ -401,16 +399,13 @@ def send_verification_code(email: str, code: str) -> None:
           <p>If you did not request this code, you can ignore this email.</p>
         </div>
     """
-    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@salazar-library.local')
-
-    message = EmailMultiAlternatives(
-        subject,
-        body,
-        from_email,
-        [email],
+    send_application_email(
+        to=[email],
+        subject=subject,
+        text=body,
+        html=html_body,
+        fail_silently=False,
     )
-    message.attach_alternative(html_body, "text/html")
-    message.send(fail_silently=False)
 
 
 def build_otp_challenge_payload(user: User, message: str) -> dict:
@@ -440,6 +435,12 @@ def create_and_send_login_otp(user: User) -> None:
 
 
 def get_email_config_error() -> str | None:
+    bridge_config_error = get_email_bridge_config_error()
+    if bridge_config_error:
+        return bridge_config_error
+    if is_email_bridge_configured():
+        return None
+
     email_backend = getattr(settings, 'EMAIL_BACKEND', '')
     non_smtp_backends = {
         'django.core.mail.backends.console.EmailBackend',

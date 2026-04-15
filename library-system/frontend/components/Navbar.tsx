@@ -59,21 +59,25 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
   const getNavLinkClasses = (href: string, mobile = false) => {
     const isActive = isNavItemActive(href);
     const baseClasses = mobile
-      ? 'group flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium tracking-[0.01em] transition-all duration-300'
-      : 'group relative inline-flex items-center rounded-full px-4.5 py-2.5 text-[0.92rem] font-medium tracking-[0.01em] transition-all duration-300';
+      ? 'group relative flex items-center justify-between overflow-hidden rounded-2xl px-4 py-3.5 text-sm font-semibold tracking-[0.02em] transition-all duration-300'
+      : 'group relative inline-flex items-center overflow-hidden rounded-full px-5 py-2.5 text-[0.95rem] font-semibold tracking-[0.015em] transition-all duration-300';
 
     if (isDark) {
       return `${baseClasses} ${
         isActive
-          ? 'bg-white/[0.08] text-sky-100 shadow-[inset_0_0_0_1px_rgba(125,211,252,0.18)]'
-          : 'text-white/68 hover:bg-white/[0.045] hover:text-sky-200'
+          ? mobile
+            ? 'bg-[linear-gradient(135deg,rgba(14,165,233,0.20)_0%,rgba(34,211,238,0.10)_50%,rgba(15,23,42,0.18)_100%)] text-white shadow-[0_16px_36px_rgba(8,145,178,0.22)]'
+            : 'bg-[linear-gradient(135deg,rgba(14,165,233,0.18)_0%,rgba(34,211,238,0.08)_48%,rgba(15,23,42,0.10)_100%)] text-white shadow-[0_14px_30px_rgba(8,145,178,0.18)]'
+          : mobile
+            ? 'text-white/72 hover:bg-white/[0.035] hover:text-white'
+            : 'text-white/68 hover:bg-white/[0.03] hover:text-white hover:-translate-y-0.5'
       }`;
     }
 
     return `${baseClasses} ${
       isActive
-        ? 'bg-[color:var(--surface-muted)] text-[color:var(--accent-cool-strong)] shadow-[inset_0_0_0_1px_rgba(14,165,233,0.12)]'
-        : 'text-ink-muted hover:bg-white/80 hover:text-[color:var(--accent-cool-strong)]'
+        ? 'bg-[linear-gradient(135deg,rgba(14,165,233,0.12)_0%,rgba(255,255,255,0.9)_100%)] text-[color:var(--accent-cool-strong)] shadow-[0_12px_28px_rgba(14,165,233,0.14)]'
+        : 'text-ink-muted hover:bg-white/75 hover:text-[color:var(--accent-cool-strong)] hover:-translate-y-0.5'
     }`;
   };
 
@@ -81,11 +85,11 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
     const isActive = isNavItemActive(href);
     return isDark
       ? isActive
-        ? 'opacity-100 scale-100 bg-gradient-to-r from-transparent via-sky-300 to-transparent shadow-[0_0_20px_rgba(56,189,248,0.55)]'
-        : 'opacity-0 scale-75 bg-gradient-to-r from-transparent via-sky-300/80 to-transparent group-hover:opacity-100 group-hover:scale-100'
+        ? 'opacity-100 scale-100 bg-gradient-to-r from-sky-400/0 via-cyan-200 to-sky-400/0 shadow-[0_0_18px_rgba(103,232,249,0.55)]'
+        : 'opacity-0 scale-75 bg-gradient-to-r from-sky-400/0 via-cyan-200/80 to-sky-400/0 group-hover:opacity-100 group-hover:scale-100'
       : isActive
-        ? 'opacity-100 scale-100 bg-gradient-to-r from-transparent via-sky-500 to-transparent'
-        : 'opacity-0 scale-75 bg-gradient-to-r from-transparent via-sky-500/70 to-transparent group-hover:opacity-100 group-hover:scale-100';
+        ? 'opacity-100 scale-100 bg-gradient-to-r from-sky-500/0 via-sky-500 to-sky-500/0 shadow-[0_0_14px_rgba(14,165,233,0.26)]'
+        : 'opacity-0 scale-75 bg-gradient-to-r from-sky-500/0 via-sky-500/70 to-sky-500/0 group-hover:opacity-100 group-hover:scale-100';
   };
 
   // Close profile dropdown when clicking outside
@@ -166,28 +170,26 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b shadow-[var(--nav-shadow)] ${
+      className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-xl shadow-[var(--nav-shadow)] ${
         isDark
-          ? 'border-white/8 bg-[linear-gradient(180deg,rgba(4,12,31,0.60)_0%,rgba(10,18,38,0.58)_48%,rgba(13,24,48,0.56)_100%)] shadow-[0_20px_60px_rgba(2,8,23,0.28)]'
-          : 'bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(245,249,255,0.93)_100%)] border-line'
+          ? 'bg-[linear-gradient(180deg,rgba(4,12,31,0.52)_0%,rgba(8,18,40,0.56)_52%,rgba(7,17,36,0.50)_100%)] shadow-[0_18px_52px_rgba(2,8,23,0.24)]'
+          : 'bg-[linear-gradient(180deg,rgba(255,255,255,0.95)_0%,rgba(245,249,255,0.90)_100%)]'
       }`}
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
-          className={`absolute inset-x-0 bottom-0 h-px ${
-            isDark
-              ? 'bg-gradient-to-r from-transparent via-sky-300/30 to-transparent'
-              : 'bg-gradient-to-r from-transparent via-sky-500/20 to-transparent'
-          }`}
-        />
-        <div
           className={`absolute left-[12%] top-[-8rem] h-56 w-56 rounded-full blur-3xl ${
-            isDark ? 'bg-sky-500/12' : 'bg-sky-500/8'
+            isDark ? 'bg-sky-500/14' : 'bg-sky-500/10'
           }`}
         />
         <div
           className={`absolute right-[10%] top-[-9rem] h-64 w-64 rounded-full blur-3xl ${
-            isDark ? 'bg-cyan-400/8' : 'bg-cyan-400/6'
+            isDark ? 'bg-cyan-400/10' : 'bg-cyan-400/7'
+          }`}
+        />
+        <div
+          className={`absolute left-1/2 top-full h-16 w-[32rem] -translate-x-1/2 -translate-y-8 blur-3xl ${
+            isDark ? 'bg-sky-400/10' : 'bg-sky-500/8'
           }`}
         />
       </div>
@@ -220,10 +222,10 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
 
           {/* Desktop Navigation */}
           <div
-            className={`hidden md:flex items-center gap-1 rounded-full px-2.5 py-1.5 ${
+            className={`hidden md:flex items-center gap-1.5 rounded-full px-1 py-1 ${
               isDark
-                ? 'bg-white/[0.028] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
-                : 'bg-white/88 shadow-[0_12px_30px_rgba(15,23,42,0.06)]'
+                ? 'bg-transparent'
+                : 'bg-transparent'
             }`}
           >
             {navItems.map((item) => (
@@ -235,7 +237,7 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
                 aria-current={isNavItemActive(item.href) ? 'page' : undefined}
               >
                 <span>{item.label}</span>
-                <span className={`pointer-events-none absolute inset-x-4 -bottom-px h-px rounded-full transition-all duration-300 ${getNavIndicatorClasses(item.href)}`} />
+                <span className={`pointer-events-none absolute inset-x-5 bottom-1 h-[2px] rounded-full transition-all duration-300 ${getNavIndicatorClasses(item.href)}`} />
               </Link>
             ))}
           </div>
@@ -249,10 +251,10 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
               <div className="relative" ref={profileRef}>
                 <button
                   onClick={() => setIsProfileOpen(!isProfileOpen)}
-                  className={`relative flex items-center space-x-2 rounded-full border px-2 py-1.5 transition-all focus:outline-none ${
+                  className={`relative flex items-center space-x-2 rounded-full px-2.5 py-1.5 transition-all focus:outline-none ${
                     isDark
-                      ? 'border-white/10 bg-white/[0.04] hover:bg-white/[0.07]'
-                      : 'border-white/80 bg-white/85 hover:bg-white'
+                      ? 'bg-white/[0.05] shadow-[0_12px_24px_rgba(2,8,23,0.20)] hover:bg-white/[0.08]'
+                      : 'bg-white/90 shadow-[0_12px_24px_rgba(15,23,42,0.08)] hover:bg-white'
                   }`}
                 >
                   {unreadCount > 0 && (
@@ -394,10 +396,10 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
 
           {/* Mobile Menu Button */}
           <button
-            className={`md:hidden rounded-full border p-2.5 transition-all ${
+            className={`md:hidden rounded-full p-2.5 transition-all ${
               isDark
-                ? 'border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]'
-                : 'border-white/80 bg-white/85 text-ink-muted hover:bg-[color:var(--surface-muted)]'
+                ? 'bg-white/[0.05] text-white/78 shadow-[0_10px_24px_rgba(2,8,23,0.20)] hover:bg-white/[0.09]'
+                : 'bg-white/90 text-ink-muted shadow-[0_10px_24px_rgba(15,23,42,0.08)] hover:bg-[color:var(--surface-muted)]'
             }`}
             onClick={() => setIsMenuOpen(!isMenuOpen)}
           >
@@ -428,10 +430,10 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
 
         {/* Mobile Menu */}
         {isMenuOpen && (
-          <div className={`md:hidden py-4 ${isDark ? 'border-t border-white/10' : 'border-t border-line'}`}>
+          <div className="md:hidden py-4">
             <div
-              className={`rounded-[1.75rem] border p-3 shadow-[0_22px_50px_rgba(2,8,23,0.24)] ${
-                isDark ? 'border-white/10 bg-white/[0.04]' : 'border-white/80 bg-white/92'
+              className={`rounded-[1.75rem] p-3 shadow-[0_22px_50px_rgba(2,8,23,0.24)] ${
+                isDark ? 'bg-[linear-gradient(180deg,rgba(14,22,44,0.82)_0%,rgba(10,19,38,0.92)_100%)]' : 'bg-white/94'
               }`}
             >
               <div className="flex flex-col gap-2">
@@ -451,7 +453,7 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
                 ))}
 
                 {/* Mobile Auth Section */}
-                <div className={`mt-4 pt-4 ${isDark ? 'border-t border-white/10' : 'border-t border-line'}`}>
+                <div className={`mt-4 pt-4 ${isDark ? 'border-t border-white/8' : 'border-t border-line/80'}`}>
                   {isAuthenticated && user ? (
                     <div className="space-y-4">
                       {/* User Info */}
@@ -531,8 +533,8 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
                         href="/login"
                         className={`rounded-full px-4 py-3 text-center text-sm font-medium transition-all ${
                           isDark
-                            ? 'border border-white/10 text-white/80 hover:bg-white/[0.06] hover:text-sky-200'
-                            : 'border border-line text-ink-muted hover:bg-[color:var(--surface-muted)] hover:text-ink'
+                            ? 'bg-white/[0.05] text-white/84 hover:bg-white/[0.08] hover:text-sky-100'
+                            : 'bg-white text-ink-muted shadow-[0_10px_24px_rgba(15,23,42,0.05)] hover:bg-[color:var(--surface-muted)] hover:text-ink'
                         }`}
                         onClick={() => setIsMenuOpen(false)}
                       >
