@@ -27,6 +27,7 @@ frontend/node_modules/
 mobile/node_modules/
 frontend/.next/
 frontend/.vercel/
+frontend/.git.frontend-backup/
 mobile/.expo/
 mobile/dist/
 frontend/*.tsbuildinfo

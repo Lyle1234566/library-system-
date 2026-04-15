@@ -91,7 +91,7 @@ LATE_FEE_PER_DAY=100.00
 - [ ] Create account at https://vercel.com
 - [ ] Add New → Project
 - [ ] Import your GitHub repository
-- [ ] Root Directory → `frontend`
+- [ ] Root Directory → `library system/frontend`
 
 ### Environment Variables
 Add in Vercel:
