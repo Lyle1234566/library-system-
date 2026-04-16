@@ -3,6 +3,7 @@ import re
 import shutil
 from datetime import timedelta
 from pathlib import Path
+from unittest.mock import patch
 from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
@@ -1053,6 +1054,22 @@ class PasswordResetFlowTests(TestCase):
             f"http://localhost:3000/forgot-password?{urlencode({'email': self.user.email, 'code': raw_code, 'source': 'email'})}",
             mail.outbox[0].body,
         )
+
+    @override_settings(
+        EMAIL_BRIDGE_URL='https://library.example.com/api/email',
+        EMAIL_BRIDGE_SECRET='bridge-secret',
+    )
+    def test_request_falls_back_to_django_email_backend_when_bridge_fails(self):
+        with patch(
+            'backend.email_bridge._send_via_email_bridge',
+            side_effect=RuntimeError('Bridge send failed'),
+        ):
+            response = self.request_reset_code()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.user.email])
+        self.assertEqual(mail.outbox[0].subject, 'Password Reset Verification Code')
 
     def test_public_alias_endpoints_work(self):
         request_response = self.client.post(

@@ -8,6 +8,13 @@ from django.core.mail import EmailMultiAlternatives
 
 
 logger = logging.getLogger(__name__)
+SMTP_EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+NON_SMTP_EMAIL_BACKENDS = {
+    'django.core.mail.backends.console.EmailBackend',
+    'django.core.mail.backends.locmem.EmailBackend',
+    'django.core.mail.backends.filebased.EmailBackend',
+    'django.core.mail.backends.dummy.EmailBackend',
+}
 
 
 def is_email_bridge_configured() -> bool:
@@ -76,6 +83,39 @@ def _send_via_email_bridge(
         raise RuntimeError(f'Unable to reach email bridge: {exc.reason}') from exc
 
 
+def _can_use_django_email_backend() -> bool:
+    email_backend = getattr(settings, 'EMAIL_BACKEND', '')
+    if email_backend in NON_SMTP_EMAIL_BACKENDS:
+        return True
+    if email_backend and email_backend != SMTP_EMAIL_BACKEND:
+        return True
+
+    return all(
+        getattr(settings, key, '').strip()
+        for key in ('EMAIL_HOST', 'EMAIL_HOST_USER', 'EMAIL_HOST_PASSWORD')
+    )
+
+
+def _send_via_django_email_backend(
+    *,
+    to: list[str],
+    subject: str,
+    text: str,
+    html: str | None = None,
+    fail_silently: bool = False,
+) -> None:
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@salazar-library.local')
+    message = EmailMultiAlternatives(
+        subject,
+        text,
+        from_email,
+        to,
+    )
+    if html:
+        message.attach_alternative(html, 'text/html')
+    message.send(fail_silently=fail_silently)
+
+
 def send_application_email(
     *,
     to: list[str],
@@ -86,19 +126,24 @@ def send_application_email(
 ) -> bool:
     try:
         if is_email_bridge_configured():
-            _send_via_email_bridge(to=to, subject=subject, text=text, html=html)
-            return True
+            try:
+                _send_via_email_bridge(to=to, subject=subject, text=text, html=html)
+                return True
+            except Exception:
+                if not _can_use_django_email_backend():
+                    raise
+                logger.exception(
+                    'Email bridge failed for %s. Falling back to the Django email backend.',
+                    ', '.join(to),
+                )
 
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@salazar-library.local')
-        message = EmailMultiAlternatives(
-            subject,
-            text,
-            from_email,
-            to,
+        _send_via_django_email_backend(
+            to=to,
+            subject=subject,
+            text=text,
+            html=html,
+            fail_silently=fail_silently,
         )
-        if html:
-            message.attach_alternative(html, 'text/html')
-        message.send(fail_silently=fail_silently)
         return True
     except Exception:
         if fail_silently:
