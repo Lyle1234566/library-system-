@@ -10,10 +10,14 @@ from .views import (
     CheckStudentIdView,
     CheckAccountIdentifierView,
     EnrollmentImportView,
+    TeacherRecordsImportView,
     PasswordResetRequestView,
     PasswordResetVerifyView,
     PasswordResetConfirmView,
     ContactMessageView,
+    ContactMessageListView,
+    ContactMessageDetailView,
+    ContactMessageReplyView,
     PendingAccountsView,
     PendingStudentsView,
     ApproveAccountView,
@@ -22,6 +26,7 @@ from .views import (
     NotificationListView,
     NotificationUnreadCountView,
     NotificationMarkReadView,
+    NotificationDeleteView,
     NotificationMarkAllReadView,
     SendEmailVerificationView,
     VerifyEmailCodeView,
@@ -59,11 +64,15 @@ urlpatterns = [
 
     # Contact form
     path('contact/', ContactMessageView.as_view(), name='contact_message'),
+    path('contact/messages/', ContactMessageListView.as_view(), name='contact_message_list'),
+    path('contact/messages/<int:message_id>/', ContactMessageDetailView.as_view(), name='contact_message_detail'),
+    path('contact/messages/<int:message_id>/reply/', ContactMessageReplyView.as_view(), name='contact_message_reply'),
     
     # Utility endpoints
     path('check-account-identifier/', CheckAccountIdentifierView.as_view(), name='check_account_identifier'),
     path('check-student-id/', CheckStudentIdView.as_view(), name='check_student_id'),
     path('enrollment-records/import/', EnrollmentImportView.as_view(), name='enrollment_import'),
+    path('teacher-records/import/', TeacherRecordsImportView.as_view(), name='teacher_records_import'),
     path('pending-accounts/', PendingAccountsView.as_view(), name='pending_accounts'),
     path('pending-students/', PendingStudentsView.as_view(), name='pending_students'),
     path('approve-account/<int:user_id>/', ApproveAccountView.as_view(), name='approve_account'),
@@ -74,5 +83,6 @@ urlpatterns = [
     path('notifications/', NotificationListView.as_view(), name='notification_list'),
     path('notifications/unread-count/', NotificationUnreadCountView.as_view(), name='notification_unread_count'),
     path('notifications/<int:notification_id>/mark-read/', NotificationMarkReadView.as_view(), name='notification_mark_read'),
+    path('notifications/<int:notification_id>/', NotificationDeleteView.as_view(), name='notification_delete'),
     path('notifications/mark-all-read/', NotificationMarkAllReadView.as_view(), name='notification_mark_all_read'),
 ]

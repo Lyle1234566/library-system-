@@ -10,10 +10,12 @@ from django.core import signing
 from django.core.signing import BadSignature, SignatureExpired
 from django.core.cache import cache
 from django.db import transaction
+from django.db.models import Count, Q
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from django.utils.html import escape
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated, BasePermission
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -23,6 +25,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from .enrollment_import import EnrollmentImportError, get_enrollment_summary, import_enrollment_csv_file
+from .teacher_import import TeacherImportError, get_teacher_records_summary, import_teacher_csv_file
 from .models import (
     PasswordResetCode,
     ContactMessage,
@@ -36,6 +39,7 @@ from backend.email_bridge import (
     is_email_bridge_configured,
     send_application_email,
 )
+from backend.notification_utils import notify_librarian_users, notify_pending_account_reviewers
 
 from .serializers import (
     UserSerializer,
@@ -47,6 +51,8 @@ from .serializers import (
     PasswordResetVerifySerializer,
     PasswordResetConfirmSerializer,
     ContactMessageSerializer,
+    ContactMessageRecordSerializer,
+    ContactMessageUpdateSerializer,
     NotificationSerializer,
 )
 
@@ -75,7 +81,28 @@ PORTAL_ROLE_MAP = {
     'staff': {'STAFF', 'WORKING', 'ADMIN'},
 }
 REGISTRABLE_ACCOUNT_ROLES = {'STUDENT', 'TEACHER'}
-PENDING_ACCOUNT_ROLES = {'STUDENT', 'TEACHER'}
+PENDING_ACCOUNT_ROLES = {'STUDENT', 'TEACHER', 'WORKING'}
+
+
+def get_contact_sender_role_label(user) -> str:
+    if not user or not getattr(user, 'is_authenticated', False):
+        return 'Guest'
+    role = getattr(user, 'role', '')
+    if role == 'WORKING' or (role == 'STUDENT' and getattr(user, 'is_working_student', False)):
+        return 'Working Student'
+    return {
+        'STUDENT': 'Student',
+        'TEACHER': 'Teacher',
+        'LIBRARIAN': 'Librarian',
+        'STAFF': 'Staff',
+        'ADMIN': 'Admin',
+    }.get(role, 'Guest')
+
+
+def get_contact_sender_identifier(user) -> str:
+    if not user or not getattr(user, 'is_authenticated', False):
+        return ''
+    return str(getattr(user, 'staff_id', '') or getattr(user, 'student_id', '') or '').strip()
 
 def is_super_admin(user) -> bool:
     return bool(
@@ -135,6 +162,11 @@ class CanApproveStudents(BasePermission):
 
 
 class CanManageEnrollmentRecords(BasePermission):
+    def has_permission(self, request, view):
+        return can_manage_enrollment_records(request.user)
+
+
+class CanManageContactMessages(BasePermission):
     def has_permission(self, request, view):
         return can_manage_enrollment_records(request.user)
 
@@ -408,6 +440,69 @@ def send_verification_code(email: str, code: str) -> None:
     )
 
 
+def send_account_approved_email(user_id: int) -> None:
+    user = User.objects.filter(pk=user_id).only(
+        'id',
+        'email',
+        'full_name',
+        'username',
+        'role',
+        'student_id',
+        'staff_id',
+        'is_working_student',
+    ).first()
+    if not user or not user.email:
+        return
+
+    if get_email_config_error():
+        return
+
+    base_url = getattr(settings, 'LIBRARY_WEB_URL', '').strip() or 'http://localhost:3000'
+    login_url = f"{base_url.rstrip('/')}/login"
+    recipient_name = user.full_name or user.username or 'Library user'
+    access_note = (
+        ' Working student access has also been enabled for your account.'
+        if user.is_working_student
+        else ''
+    )
+    subject = 'Library Account Approved'
+    body = (
+        f"Hi {recipient_name},\n\n"
+        "Your library account request has been approved. "
+        "You can now sign in to the SCSIT Library System using your registered ID or username and password."
+        f"{access_note}\n\n"
+        f"Sign in here: {login_url}\n\n"
+        "SCSIT Library System"
+    )
+    html_body = f"""
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
+          <h2 style="margin-bottom: 12px;">Library Account Approved</h2>
+          <p>Hi {recipient_name},</p>
+          <p>
+            Your library account request has been approved. You can now sign in to the
+            SCSIT Library System using your registered ID or username and password.{access_note}
+          </p>
+          <p>
+            <a
+              href="{login_url}"
+              style="display: inline-block; padding: 12px 18px; background: #0f4c81; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 700;"
+            >
+              Sign In
+            </a>
+          </p>
+          <p>If the button does not work, open this link:</p>
+          <p><a href="{login_url}">{login_url}</a></p>
+        </div>
+    """
+    send_application_email(
+        to=[user.email],
+        subject=subject,
+        text=body,
+        html=html_body,
+        fail_silently=True,
+    )
+
+
 def build_otp_challenge_payload(user: User, message: str) -> dict:
     return {
         'requires_otp': True,
@@ -510,6 +605,19 @@ class RegisterView(generics.CreateAPIView):
                 {'detail': 'Failed to send OTP email. Please try again.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+        notify_pending_account_reviewers(
+            notification_type='ACCOUNT_PENDING_APPROVAL',
+            title='New pending account',
+            message=(
+                f"{user.full_name} registered as a {user.role.lower()} and is awaiting approval."
+            ),
+            data={
+                'dashboard_section': 'desk-accounts',
+                'user_id': user.pk,
+                'role': user.role,
+            },
+        )
 
         return Response(
             {
@@ -740,7 +848,7 @@ class EnrollmentImportView(APIView):
 
 class PendingAccountsView(APIView):
     """
-    List student and teacher accounts awaiting approval.
+    List student, teacher, and working-student accounts awaiting approval.
     """
 
     permission_classes = [IsAuthenticated, CanViewPendingStudents]
@@ -762,7 +870,7 @@ class PendingStudentsView(PendingAccountsView):
 
 class ApproveAccountView(APIView):
     """
-    Approve a pending student or teacher account.
+    Approve a pending student, teacher, or working-student account.
     """
 
     permission_classes = [IsAuthenticated, CanApproveStudents]
@@ -779,16 +887,20 @@ class ApproveAccountView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        mark_as_working_student = parse_bool(request.data.get('is_working_student'))
-        if mark_as_working_student and account.role != 'STUDENT':
+        mark_as_working_student = account.role == 'WORKING' or parse_bool(request.data.get('is_working_student'))
+        if mark_as_working_student and account.role not in {'STUDENT', 'WORKING'}:
             return Response(
                 {'detail': 'Only student accounts can be approved as working students.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        account.is_active = True
-        account.is_working_student = mark_as_working_student
-        account.save(update_fields=['is_active', 'is_working_student'])
+        with transaction.atomic():
+            account.is_active = True
+            account.is_working_student = mark_as_working_student
+            account.save(update_fields=['is_active', 'is_working_student'])
+            transaction.on_commit(
+                lambda approved_user_id=account.id: send_account_approved_email(approved_user_id)
+            )
         return Response(UserSerializer(account).data, status=status.HTTP_200_OK)
 
 
@@ -800,7 +912,7 @@ class ApproveStudentView(ApproveAccountView):
 
 class RejectAccountView(APIView):
     """
-    Reject a pending student or teacher account.
+    Reject a pending student, teacher, or working-student account.
     """
 
     permission_classes = [IsAuthenticated, CanApproveStudents]
@@ -1079,7 +1191,8 @@ class NotificationListView(APIView):
             except (TypeError, ValueError):
                 limit = 50
 
-        queryset = Notification.objects.filter(user=request.user)
+        base_queryset = Notification.objects.filter(user=request.user)
+        queryset = base_queryset
         if unread_only:
             queryset = queryset.filter(is_read=False)
         queryset = queryset.order_by('-created_at')[:limit]
@@ -1089,6 +1202,7 @@ class NotificationListView(APIView):
             {
                 'results': serializer.data,
                 'unread_count': request.user.get_unread_notifications_count(),
+                'total_count': base_queryset.count(),
             },
             status=status.HTTP_200_OK,
         )
@@ -1123,6 +1237,26 @@ class NotificationMarkReadView(APIView):
         )
 
 
+class NotificationDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, notification_id: int):
+        try:
+            notification = Notification.objects.get(pk=notification_id, user=request.user)
+        except Notification.DoesNotExist:
+            return Response({'detail': 'Notification not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        notification.delete()
+        return Response(
+            {
+                'message': 'Notification deleted.',
+                'unread_count': request.user.get_unread_notifications_count(),
+                'total_count': Notification.objects.filter(user=request.user).count(),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class NotificationMarkAllReadView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -1141,9 +1275,133 @@ class NotificationMarkAllReadView(APIView):
         )
 
 
+class ContactMessageListView(APIView):
+    permission_classes = [IsAuthenticated, CanManageContactMessages]
+
+    def get(self, request):
+        search = str(request.query_params.get('search') or '').strip()
+        status_filter = str(request.query_params.get('status') or '').strip().upper()
+        limit_raw = request.query_params.get('limit')
+        limit = 100
+        if limit_raw:
+            try:
+                limit = max(1, min(int(limit_raw), 250))
+            except (TypeError, ValueError):
+                limit = 100
+
+        base_queryset = ContactMessage.objects.select_related('user', 'handled_by').all()
+        if search:
+            base_queryset = base_queryset.filter(
+                Q(name__icontains=search)
+                | Q(email__icontains=search)
+                | Q(subject__icontains=search)
+                | Q(message__icontains=search)
+                | Q(internal_notes__icontains=search)
+                | Q(user__full_name__icontains=search)
+                | Q(user__student_id__icontains=search)
+                | Q(user__staff_id__icontains=search)
+            )
+
+        status_counts = {
+            row['status']: row['count']
+            for row in base_queryset.values('status').annotate(count=Count('id'))
+        }
+
+        queryset = base_queryset.order_by('-created_at')
+        if status_filter in dict(ContactMessage.STATUS_CHOICES):
+            queryset = queryset.filter(status=status_filter)
+
+        filtered_count = queryset.count()
+        queryset = queryset[:limit]
+        serializer = ContactMessageRecordSerializer(queryset, many=True)
+        return Response(
+            {
+                'results': serializer.data,
+                'total_count': base_queryset.count(),
+                'filtered_count': filtered_count,
+                'status_counts': {
+                    ContactMessage.STATUS_NEW: status_counts.get(ContactMessage.STATUS_NEW, 0),
+                    ContactMessage.STATUS_IN_PROGRESS: status_counts.get(ContactMessage.STATUS_IN_PROGRESS, 0),
+                    ContactMessage.STATUS_RESOLVED: status_counts.get(ContactMessage.STATUS_RESOLVED, 0),
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ContactMessageDetailView(APIView):
+    permission_classes = [IsAuthenticated, CanManageContactMessages]
+
+    def patch(self, request, message_id: int):
+        try:
+            contact_message = ContactMessage.objects.select_related('user', 'handled_by').get(pk=message_id)
+        except ContactMessage.DoesNotExist:
+            return Response({'detail': 'Contact message not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = ContactMessageUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        update_fields: list[str] = []
+        next_notes = data.get('internal_notes', contact_message.internal_notes)
+        next_status = data.get('status', contact_message.status)
+
+        if contact_message.internal_notes != next_notes:
+            contact_message.internal_notes = next_notes
+            update_fields.append('internal_notes')
+        if contact_message.status != next_status:
+            contact_message.status = next_status
+            update_fields.append('status')
+
+        if update_fields:
+            contact_message.handled_by = request.user
+            contact_message.handled_at = timezone.now()
+            update_fields.extend(['handled_by', 'handled_at'])
+            contact_message.save(update_fields=update_fields)
+            contact_message.refresh_from_db()
+
+        return Response(ContactMessageRecordSerializer(contact_message).data, status=status.HTTP_200_OK)
+
+
+class TeacherRecordsImportView(APIView):
+    permission_classes = [IsAuthenticated, CanManageEnrollmentRecords]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request):
+        return Response(get_teacher_records_summary(), status=status.HTTP_200_OK)
+
+    def post(self, request):
+        upload = request.FILES.get('file') or request.FILES.get('csv')
+        if upload is None:
+            return Response(
+                {'detail': 'CSV file is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        fallback_term = str(request.data.get('academic_term') or '').strip()
+
+        try:
+            result = import_teacher_csv_file(upload, fallback_term=fallback_term)
+        except TeacherImportError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        summary = get_teacher_records_summary()
+        return Response(
+            {
+                'message': 'Teacher records uploaded successfully.',
+                'created_count': result.created_count,
+                'updated_count': result.updated_count,
+                'skipped_count': result.skipped_count,
+                'skipped_rows': result.skipped_rows,
+                **summary,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class ContactMessageView(APIView):
     """
-    Accept contact form submissions.
+    Accept contact form submissions and notify the admin by email.
     """
 
     permission_classes = [AllowAny]
@@ -1154,18 +1412,162 @@ class ContactMessageView(APIView):
         serializer.is_valid(raise_exception=True)
 
         data = serializer.validated_data
-        ContactMessage.objects.create(
-            user=request.user if request.user.is_authenticated else None,
+        sender_user = request.user if request.user.is_authenticated else None
+        sender_role = get_contact_sender_role_label(sender_user)
+        sender_identifier = get_contact_sender_identifier(sender_user)
+        contact_message = ContactMessage.objects.create(
+            user=sender_user,
             name=data['name'],
             email=data['email'],
             subject=data.get('subject', ''),
             message=data['message'],
         )
+        subject_line = data.get('subject', '').strip() or 'No subject'
+        message_preview = re.sub(r'\s+', ' ', data['message']).strip()[:140]
+
+        notify_librarian_users(
+            notification_type=Notification.TYPE_CONTACT_MESSAGE_RECEIVED,
+            title=f"New contact message from {data['name']}",
+            message=f'{sender_role} {data["name"]} sent a contact message about "{subject_line}".',
+            data={
+                'dashboard_section': 'desk-contact',
+                'contact_message_id': contact_message.id,
+                'sender_name': data['name'],
+                'sender_email': data['email'],
+                'sender_role': sender_role,
+                'sender_identifier': sender_identifier,
+                'subject': subject_line,
+                'message_preview': message_preview,
+            },
+            dedupe=False,
+        )
+
+        admin_email = getattr(settings, 'CONTACT_ADMIN_EMAIL', '').strip()
+        if admin_email and not get_email_config_error():
+            sender_name = data['name']
+            sender_email = data['email']
+            body_text = data['message']
+            account_line = f"Account ID: {sender_identifier}\n" if sender_identifier else ''
+            html_account_line = (
+                f'<p><strong>Account ID:</strong> {escape(sender_identifier)}</p>'
+                if sender_identifier
+                else ''
+            )
+            email_subject = f"[Contact Form] {subject_line} - from {sender_name}"
+            text_body = (
+                f"New contact form message\n\n"
+                f"From: {sender_name} <{sender_email}>\n"
+                f"Role: {sender_role}\n"
+                f"{account_line}"
+                f"Subject: {subject_line}\n\n"
+                f"{body_text}"
+            )
+            html_body = f"""
+                <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
+                  <h2 style="margin-bottom: 8px;">New Contact Form Message</h2>
+                  <p><strong>From:</strong> {escape(sender_name)} &lt;{escape(sender_email)}&gt;</p>
+                  <p><strong>Role:</strong> {escape(sender_role)}</p>
+                  {html_account_line}
+                  <p><strong>Subject:</strong> {escape(subject_line)}</p>
+                  <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;" />
+                  <p style="white-space: pre-wrap;">{escape(body_text)}</p>
+                </div>
+            """
+            try:
+                send_application_email(
+                    to=[admin_email],
+                    subject=email_subject,
+                    text=text_body,
+                    html=html_body,
+                    fail_silently=True,
+                )
+            except Exception:
+                logger.exception('Failed to send contact form notification email.')
 
         return Response(
             {'message': 'Thanks! Your message has been received.'},
             status=status.HTTP_201_CREATED,
         )
+
+
+class ContactMessageReplyView(APIView):
+    """
+    Send an email reply to a contact message sender.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, message_id: int):
+        if not (is_super_admin(request.user) or getattr(request.user, 'role', None) in {'LIBRARIAN', 'STAFF'}):
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            contact_message = ContactMessage.objects.get(pk=message_id)
+        except ContactMessage.DoesNotExist:
+            return Response({'detail': 'Contact message not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        reply_body = str(request.data.get('reply', '')).strip()
+        if not reply_body:
+            return Response({'detail': 'Reply message is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        config_error = get_email_config_error()
+        if config_error:
+            return Response({'detail': config_error}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        librarian_name = getattr(request.user, 'full_name', '') or getattr(request.user, 'username', '') or 'Librarian'
+        original_subject = contact_message.subject.strip() or 'Your message'
+        email_subject = f"Re: {original_subject}"
+        text_body = (
+            f"Hi {contact_message.name},\n\n"
+            f"{reply_body}\n\n"
+            f"— {librarian_name}\nSCSIT Library System"
+        )
+        html_body = f"""
+            <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
+              <p>Hi {contact_message.name},</p>
+              <p style="white-space: pre-wrap;">{reply_body}</p>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;" />
+              <p style="color: #64748b; font-size: 13px;">
+                — {librarian_name}<br />SCSIT Library System
+              </p>
+              <p style="color: #94a3b8; font-size: 12px; margin-top: 16px;">
+                This is a reply to your message: &ldquo;{original_subject}&rdquo;
+              </p>
+            </div>
+        """
+
+        try:
+            send_application_email(
+                to=[contact_message.email],
+                subject=email_subject,
+                text=text_body,
+                html=html_body,
+                fail_silently=False,
+            )
+        except Exception as exc:
+            logger.exception('Failed to send contact reply email: %s', exc)
+            return Response(
+                {'detail': 'Failed to send reply email. Please try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        contact_message.status = 'IN_PROGRESS'
+        contact_message.handled_by = request.user
+        contact_message.handled_at = timezone.now()
+        contact_message.save(update_fields=['status', 'handled_by', 'handled_at'])
+
+        if contact_message.user_id:
+            from backend.notification_utils import create_user_notification
+            subject_preview = contact_message.subject or 'your inquiry'
+            create_user_notification(
+                user_id=contact_message.user_id,
+                notification_type='CONTACT_REPLY',
+                title='Reply to your message',
+                message='The library has replied to your message: ' + subject_preview + '.',
+                data={'contact_message_id': contact_message.id},
+            )
+
+        return Response({'message': f'Reply sent to {contact_message.email}.'}, status=status.HTTP_200_OK)
 
 
 class SendEmailVerificationView(APIView):

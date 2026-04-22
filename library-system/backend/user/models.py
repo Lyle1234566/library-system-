@@ -213,6 +213,39 @@ class EnrollmentRecord(models.Model):
         super().save(*args, **kwargs)
 
 
+class TeacherRecord(models.Model):
+    staff_id = models.CharField(
+        'Faculty ID',
+        max_length=20,
+        unique=True,
+        help_text='Official faculty ID from the approved teacher records.',
+    )
+    full_name = models.CharField(max_length=100, blank=True)
+    school_email = models.EmailField(blank=True)
+    department = models.CharField(max_length=120, blank=True)
+    academic_term = models.CharField(max_length=80, blank=True)
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['staff_id']
+        verbose_name = 'Teacher record'
+        verbose_name_plural = 'Teacher records'
+
+    def __str__(self) -> str:
+        return f"{self.staff_id} - {self.full_name or 'Teacher record'}"
+
+    def save(self, *args, **kwargs):
+        self.staff_id = (self.staff_id or '').strip().upper()
+        self.full_name = (self.full_name or '').strip()
+        self.school_email = (self.school_email or '').strip().lower()
+        self.department = (self.department or '').strip()
+        self.academic_term = (self.academic_term or '').strip()
+        super().save(*args, **kwargs)
+
+
 class PasswordResetCode(models.Model):
     """
     Short-lived reset code sent to a user's email address.
@@ -258,11 +291,30 @@ class PasswordResetCode(models.Model):
 class ContactMessage(models.Model):
     """Stores contact form submissions."""
 
+    STATUS_NEW = 'NEW'
+    STATUS_IN_PROGRESS = 'IN_PROGRESS'
+    STATUS_RESOLVED = 'RESOLVED'
+    STATUS_CHOICES = (
+        (STATUS_NEW, 'New'),
+        (STATUS_IN_PROGRESS, 'In progress'),
+        (STATUS_RESOLVED, 'Resolved'),
+    )
+
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='contact_messages')
     name = models.CharField(max_length=120)
     email = models.EmailField()
     subject = models.CharField(max_length=200, blank=True)
     message = models.TextField()
+    internal_notes = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_NEW)
+    handled_at = models.DateTimeField(null=True, blank=True)
+    handled_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='handled_contact_messages',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -273,6 +325,7 @@ class ContactMessage(models.Model):
 
 
 class Notification(models.Model):
+    TYPE_CONTACT_MESSAGE_RECEIVED = 'CONTACT_MESSAGE_RECEIVED'
     TYPE_BORROW_APPROVED = 'BORROW_APPROVED'
     TYPE_BORROW_REJECTED = 'BORROW_REJECTED'
     TYPE_RETURN_APPROVED = 'RETURN_APPROVED'
@@ -289,8 +342,11 @@ class Notification(models.Model):
     TYPE_RESERVATION_EXPIRED = 'RESERVATION_EXPIRED'
     TYPE_RESERVATION_CANCELLED = 'RESERVATION_CANCELLED'
     TYPE_DUE_SOON = 'DUE_SOON'
+    TYPE_CONTACT_REPLY = 'CONTACT_REPLY'
 
     TYPE_CHOICES = (
+        (TYPE_CONTACT_MESSAGE_RECEIVED, 'Contact message received'),
+        (TYPE_CONTACT_REPLY, 'Contact reply'),
         (TYPE_BORROW_APPROVED, 'Borrow approved'),
         (TYPE_BORROW_REJECTED, 'Borrow rejected'),
         (TYPE_RETURN_APPROVED, 'Return approved'),

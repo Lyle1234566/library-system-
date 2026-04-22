@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
-from .models import EnrollmentRecord, User
+from .models import EnrollmentRecord, TeacherRecord, User
 
 
 @dataclass(frozen=True)
@@ -73,10 +73,25 @@ def get_teacher_identifier_status(identifier: str | None) -> IdentifierAvailabil
             message='Faculty ID is already taken',
         )
 
+    teacher_record = TeacherRecord.objects.filter(staff_id__iexact=normalized).first()
+    if teacher_record is None:
+        return IdentifierAvailability(
+            available=False,
+            reason='not_in_teacher_records',
+            message='Faculty ID was not found in the teacher records.',
+        )
+
+    if not teacher_record.is_active:
+        return IdentifierAvailability(
+            available=False,
+            reason='inactive_teacher_record',
+            message='Faculty ID is not marked as active in the teacher records.',
+        )
+
     return IdentifierAvailability(
         available=True,
         reason='available',
-        message='Faculty ID is available',
+        message='Faculty ID is verified in the teacher records.',
     )
 
 

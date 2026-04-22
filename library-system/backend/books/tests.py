@@ -10,6 +10,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from backend.notification_utils import notify_librarian_dashboard
 from books.models import (
     AutomationCheckpoint,
     Book,
@@ -21,6 +22,7 @@ from books.models import (
     RenewalRequest,
     Reservation,
     ReturnRequest,
+    create_user_notification,
     run_borrow_automation,
 )
 from books.middleware import DailyBorrowAutomationMiddleware
@@ -37,6 +39,15 @@ class BorrowAutomationTests(TestCase):
             student_id='S-1001',
             email='student1@example.com',
             role='STUDENT',
+            is_active=True,
+        )
+        self.librarian = user_model.objects.create_user(
+            username='automation-librarian',
+            password='test-pass-123',
+            full_name='Automation Librarian',
+            staff_id='L-0001',
+            email='automation-librarian@example.com',
+            role='LIBRARIAN',
             is_active=True,
         )
         self.book = Book.objects.create(
@@ -95,6 +106,8 @@ class BorrowAutomationTests(TestCase):
 
     @override_settings(
         EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_BRIDGE_URL='',
+        EMAIL_BRIDGE_SECRET='',
         DUE_SOON_REMINDER_DAYS=1,
         LIBRARY_WEB_URL='http://localhost:3000',
     )
@@ -125,6 +138,8 @@ class BorrowAutomationTests(TestCase):
 
     @override_settings(
         EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_BRIDGE_URL='',
+        EMAIL_BRIDGE_SECRET='',
         DUE_SOON_REMINDER_DAYS=1,
     )
     def test_run_borrow_automation_sends_due_soon_email_only_once(self):
@@ -176,6 +191,13 @@ class BorrowAutomationTests(TestCase):
 
         fine_payment = FinePayment.objects.get(borrow_request=borrow, status=FinePayment.STATUS_PENDING)
         self.assertEqual(fine_payment.amount, Decimal('15.00'))
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.librarian,
+                notification_type='OVERDUE_BOOK_ALERT',
+                data__borrow_request_id=borrow.pk,
+            ).exists()
+        )
 
     @override_settings(LATE_FEE_PER_DAY=5.00)
     def test_run_borrow_automation_tracks_only_remaining_balance_after_payment(self):
@@ -295,6 +317,13 @@ class BorrowRenewalApiTests(TestCase):
                 notification_type='RENEWAL_REQUEST_SUBMITTED',
             ).exists()
         )
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.librarian,
+                notification_type='RENEWAL_REQUEST_SUBMITTED',
+                data__renewal_request_id=renewal_request.pk,
+            ).exists()
+        )
 
     def test_student_cannot_submit_renewal_request_when_return_request_is_pending(self):
         ReturnRequest.objects.create(
@@ -333,7 +362,13 @@ class BorrowRenewalApiTests(TestCase):
             'This book already has a pending reservation.',
         )
 
-    @override_settings(RENEWAL_DURATION_DAYS=4)
+    @override_settings(
+        RENEWAL_DURATION_DAYS=4,
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_BRIDGE_URL='',
+        EMAIL_BRIDGE_SECRET='',
+        LIBRARY_WEB_URL='http://localhost:3000',
+    )
     def test_librarian_can_approve_pending_renewal_request(self):
         renewal_request = RenewalRequest.objects.create(
             borrow_request=self.borrow_request,
@@ -342,11 +377,12 @@ class BorrowRenewalApiTests(TestCase):
         old_due_date = self.borrow_request.due_date
 
         self.client.force_authenticate(user=self.librarian)
-        response = self.client.post(
-            f'/api/books/renewal-requests/{renewal_request.id}/approve/',
-            {},
-            format='json',
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f'/api/books/renewal-requests/{renewal_request.id}/approve/',
+                {},
+                format='json',
+            )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         renewal_request.refresh_from_db()
@@ -361,7 +397,16 @@ class BorrowRenewalApiTests(TestCase):
                 notification_type='RENEWAL_SUCCESS',
             ).exists()
         )
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.user.email])
+        self.assertIn('/my-books', mail.outbox[0].body)
 
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_BRIDGE_URL='',
+        EMAIL_BRIDGE_SECRET='',
+        LIBRARY_WEB_URL='http://localhost:3000',
+    )
     def test_librarian_can_reject_pending_renewal_request(self):
         renewal_request = RenewalRequest.objects.create(
             borrow_request=self.borrow_request,
@@ -369,11 +414,12 @@ class BorrowRenewalApiTests(TestCase):
         )
 
         self.client.force_authenticate(user=self.librarian)
-        response = self.client.post(
-            f'/api/books/renewal-requests/{renewal_request.id}/reject/',
-            {},
-            format='json',
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f'/api/books/renewal-requests/{renewal_request.id}/reject/',
+                {},
+                format='json',
+            )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         renewal_request.refresh_from_db()
@@ -386,6 +432,186 @@ class BorrowRenewalApiTests(TestCase):
                 notification_type='RENEWAL_REQUEST_REJECTED',
             ).exists()
         )
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.user.email])
+        self.assertIn('/my-books', mail.outbox[0].body)
+
+
+class NotificationEmailHelperTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.student = user_model.objects.create_user(
+            username='email-student',
+            password='test-pass-123',
+            full_name='Email Student',
+            student_id='S-1301',
+            email='email-student@example.com',
+            role='STUDENT',
+            is_active=True,
+        )
+        self.librarian = user_model.objects.create_user(
+            username='email-librarian',
+            password='test-pass-123',
+            full_name='Email Librarian',
+            staff_id='L-1301',
+            email='email-librarian@example.com',
+            role='LIBRARIAN',
+            is_active=True,
+        )
+        self.working_reviewer = user_model.objects.create_user(
+            username='email-working-reviewer',
+            password='test-pass-123',
+            full_name='Email Working Reviewer',
+            student_id='S-1302',
+            email='email-working-reviewer@example.com',
+            role='WORKING',
+            is_active=True,
+        )
+        self.book = Book.objects.create(
+            title='Notification Email Coverage',
+            author='QA Mailer',
+            isbn='9781234567099',
+            published_date=timezone.localdate(),
+            genre='Testing',
+        )
+
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_BRIDGE_URL='',
+        EMAIL_BRIDGE_SECRET='',
+        LIBRARY_WEB_URL='http://localhost:3000',
+    )
+    def test_selected_student_notification_types_send_email(self):
+        cases = [
+            ('BORROW_APPROVED', {'borrow_request_id': 1, 'book_id': self.book.id}),
+            ('BORROW_REJECTED', {'borrow_request_id': 2, 'book_id': self.book.id}),
+            ('RETURN_APPROVED', {'borrow_request_id': 3, 'book_id': self.book.id, 'return_request_id': 1}),
+            ('RETURN_REJECTED', {'borrow_request_id': 4, 'book_id': self.book.id, 'return_request_id': 2}),
+            ('RENEWAL_SUCCESS', {'borrow_request_id': 5, 'book_id': self.book.id}),
+            ('RENEWAL_REQUEST_REJECTED', {'borrow_request_id': 6, 'book_id': self.book.id, 'renewal_request_id': 3}),
+            ('FINE_CREATED', {'borrow_request_id': 7, 'book_id': self.book.id, 'fine_payment_id': 4}),
+            ('FINE_PAID', {'borrow_request_id': 8, 'book_id': self.book.id, 'fine_payment_id': 5}),
+            ('FINE_WAIVED', {'borrow_request_id': 9, 'book_id': self.book.id, 'fine_payment_id': 6}),
+            ('RESERVATION_EXPIRED', {'reservation_id': 7, 'book_id': self.book.id}),
+            ('RESERVATION_CANCELLED', {'reservation_id': 8, 'book_id': self.book.id}),
+        ]
+
+        with self.captureOnCommitCallbacks(execute=True):
+            for index, (notification_type, data) in enumerate(cases, start=1):
+                create_user_notification(
+                    user_id=self.student.id,
+                    notification_type=notification_type,
+                    title=f'Notification {index}',
+                    message=f'{notification_type} message',
+                    data=data,
+                )
+
+        self.assertEqual(len(mail.outbox), len(cases))
+        self.assertTrue(all(email.to == [self.student.email] for email in mail.outbox))
+        self.assertTrue(any('/my-books' in email.body for email in mail.outbox))
+        self.assertTrue(any(f'/books/{self.book.id}' in email.body for email in mail.outbox))
+
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_BRIDGE_URL='',
+        EMAIL_BRIDGE_SECRET='',
+        LIBRARY_WEB_URL='http://localhost:3000',
+    )
+    def test_librarian_notification_types_send_email(self):
+        cases = [
+            ('ACCOUNT_PENDING_APPROVAL', 'desk-accounts'),
+            ('BORROW_REQUEST_SUBMITTED', 'desk-borrows'),
+            ('RETURN_REQUEST_SUBMITTED', 'desk-returns'),
+            ('RENEWAL_REQUEST_SUBMITTED', 'desk-renewals'),
+            ('OVERDUE_BOOK_ALERT', 'desk-overdue'),
+            ('REPORT_SUBMITTED', 'desk-notifications'),
+        ]
+
+        with self.captureOnCommitCallbacks(execute=True):
+            for index, (notification_type, dashboard_section) in enumerate(cases, start=1):
+                create_user_notification(
+                    user_id=self.librarian.id,
+                    notification_type=notification_type,
+                    title=f'Librarian notification {index}',
+                    message=f'{notification_type} message',
+                    data={
+                        'portal': 'librarian',
+                        'dashboard_section': dashboard_section,
+                        'user_id': self.student.id,
+                        'book_id': self.book.id,
+                        'borrow_request_id': index,
+                    },
+                )
+
+        self.assertEqual(len(mail.outbox), len(cases))
+        self.assertTrue(all(email.to == [self.librarian.email] for email in mail.outbox))
+        self.assertTrue(all('/librarian?section=' in email.body for email in mail.outbox))
+
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_BRIDGE_URL='',
+        EMAIL_BRIDGE_SECRET='',
+        LIBRARY_WEB_URL='http://localhost:3000',
+    )
+    def test_circulation_dashboard_notifications_target_staff_and_librarian_portals(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            notify_librarian_dashboard(
+                notification_type='BORROW_REQUEST_SUBMITTED',
+                title='Desk borrow notification',
+                message='Borrow queue updated.',
+                data={
+                    'dashboard_section': 'desk-borrows',
+                    'borrow_request_id': 77,
+                    'book_id': self.book.id,
+                    'user_id': self.student.id,
+                },
+            )
+
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.librarian,
+                notification_type='BORROW_REQUEST_SUBMITTED',
+                data__portal='librarian',
+                data__dashboard_section='desk-borrows',
+            ).exists()
+        )
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.working_reviewer,
+                notification_type='BORROW_REQUEST_SUBMITTED',
+                data__portal='staff',
+                data__dashboard_section='desk-borrows',
+            ).exists()
+        )
+        self.assertEqual(len(mail.outbox), 2)
+        email_bodies = [email.body for email in mail.outbox]
+        self.assertTrue(any('/librarian?section=desk-borrows' in body for body in email_bodies))
+        self.assertTrue(any('/staff?section=desk-borrows' in body for body in email_bodies))
+
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_BRIDGE_URL='',
+        EMAIL_BRIDGE_SECRET='',
+        LIBRARY_WEB_URL='http://localhost:3000',
+    )
+    def test_due_soon_and_reservation_available_skip_duplicate_helper_email(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            create_user_notification(
+                user_id=self.student.id,
+                notification_type='DUE_SOON',
+                title='Due soon',
+                message='Due soon message',
+                data={'borrow_request_id': 1, 'book_id': self.book.id},
+            )
+            create_user_notification(
+                user_id=self.student.id,
+                notification_type='RESERVATION_AVAILABLE',
+                title='Reservation available',
+                message='Reservation available message',
+                data={'reservation_id': 1, 'book_id': self.book.id},
+            )
+
+        self.assertEqual(len(mail.outbox), 0)
 
 
 class DailyBorrowAutomationMiddlewareTests(TestCase):
@@ -417,6 +643,8 @@ class DailyBorrowAutomationMiddlewareTests(TestCase):
 
     @override_settings(
         EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_BRIDGE_URL='',
+        EMAIL_BRIDGE_SECRET='',
         AUTO_RUN_BORROW_AUTOMATION_DAILY=True,
         DUE_SOON_REMINDER_DAYS=1,
         LIBRARY_WEB_URL='http://localhost:3000',
@@ -570,6 +798,20 @@ class MobileFlowEnhancementTests(TestCase):
             Decimal('55.00'),
         )
 
+    def test_student_borrow_request_notifies_librarian_dashboard(self):
+        self.client.force_authenticate(user=self.student)
+        response = self.client.post(f'/api/books/books/{self.book.id}/borrow/', {}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        borrow_request = BorrowRequest.objects.get(pk=response.data['request']['id'])
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.librarian,
+                notification_type='BORROW_REQUEST_SUBMITTED',
+                data__borrow_request_id=borrow_request.pk,
+            ).exists()
+        )
+
     def test_student_can_cancel_pending_reservation(self):
         self.copy.status = BookCopy.STATUS_BORROWED
         self.copy.save(update_fields=['status'])
@@ -698,6 +940,32 @@ class MobileFlowEnhancementTests(TestCase):
         self.assertEqual(response.data['unpaid_total'], '20.00')
         self.assertEqual(response.data['pending_count'], 1)
 
+    def test_student_return_request_notifies_librarian_dashboard(self):
+        self.copy.status = BookCopy.STATUS_BORROWED
+        self.copy.save(update_fields=['status'])
+        borrow_request = BorrowRequest.objects.create(
+            user=self.student,
+            book=self.book,
+            copy=self.copy,
+            status=BorrowRequest.STATUS_APPROVED,
+            processed_at=timezone.now(),
+            due_date=timezone.localdate() + timedelta(days=3),
+        )
+
+        self.client.force_authenticate(user=self.student)
+        response = self.client.post(f'/api/books/books/{self.book.id}/return/', {}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return_request = ReturnRequest.objects.get(pk=response.data['return_request']['id'])
+        self.assertEqual(return_request.borrow_request_id, borrow_request.pk)
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.librarian,
+                notification_type='RETURN_REQUEST_SUBMITTED',
+                data__return_request_id=return_request.pk,
+            ).exists()
+        )
+
     @override_settings(MAX_UNPAID_FINE_AMOUNT=50.00, LATE_FEE_PER_DAY=5.00)
     def test_overdue_balance_is_created_before_return_and_blocks_new_borrow(self):
         overdue_book = Book.objects.create(
@@ -790,6 +1058,12 @@ class TeacherBorrowingTests(TestCase):
             borrow_request.processed_at.date() + timedelta(days=7),
         )
 
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_BRIDGE_URL='',
+        EMAIL_BRIDGE_SECRET='',
+        LIBRARY_WEB_URL='http://localhost:3000',
+    )
     def test_teacher_can_submit_periodic_report_for_active_borrow(self):
         self.copy.status = BookCopy.STATUS_BORROWED
         self.copy.save(update_fields=['status'])
@@ -807,11 +1081,12 @@ class TeacherBorrowingTests(TestCase):
         borrow_request.save(update_fields=['next_report_due_date'])
 
         self.client.force_authenticate(user=self.teacher)
-        response = self.client.post(
-            f'/api/books/borrow-requests/{borrow_request.id}/submit-report/',
-            {},
-            format='json',
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f'/api/books/borrow-requests/{borrow_request.id}/submit-report/',
+                {},
+                format='json',
+            )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         borrow_request.refresh_from_db()
@@ -826,6 +1101,16 @@ class TeacherBorrowingTests(TestCase):
                 notification_type='REPORT_SUBMITTED',
             ).exists()
         )
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.librarian,
+                notification_type='REPORT_SUBMITTED',
+                data__borrow_request_id=borrow_request.pk,
+            ).exists()
+        )
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.librarian.email])
+        self.assertIn('/librarian?section=desk-notifications', mail.outbox[0].body)
 
 
 class WorkingStudentBorrowingTests(TestCase):

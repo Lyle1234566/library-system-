@@ -23,6 +23,7 @@ from .models import (
     ReturnRequest,
     BookReview,
     create_user_notification,
+    notify_librarian_dashboard,
     recalculate_pending_reservation_positions,
     sync_overdue_fine_payments,
 )
@@ -1046,6 +1047,18 @@ class BookViewSet(viewsets.ModelViewSet):
             borrow_request,
             context=self.get_serializer_context(),
         ).data
+        notify_librarian_dashboard(
+            notification_type='BORROW_REQUEST_SUBMITTED',
+            title='New borrow request',
+            message=f"{borrow_request.user.full_name} requested '{borrow_request.book.title}'.",
+            data={
+                'portal': 'librarian',
+                'dashboard_section': 'desk-borrows',
+                'borrow_request_id': borrow_request.pk,
+                'book_id': borrow_request.book_id,
+                'user_id': borrow_request.user_id,
+            },
+        )
         return Response(
             {
                 'message': (
@@ -1106,6 +1119,21 @@ class BookViewSet(viewsets.ModelViewSet):
             context=self.get_serializer_context(),
         ).data
         book_data = BookSerializer(book, context=self.get_serializer_context()).data
+        notify_librarian_dashboard(
+            notification_type='RETURN_REQUEST_SUBMITTED',
+            title='New return request',
+            message=(
+                f"{borrow_request.user.full_name} requested to return '{borrow_request.book.title}'."
+            ),
+            data={
+                'portal': 'librarian',
+                'dashboard_section': 'desk-returns',
+                'return_request_id': return_request.pk,
+                'borrow_request_id': borrow_request.pk,
+                'book_id': borrow_request.book_id,
+                'user_id': borrow_request.user_id,
+            },
+        )
         return Response(
             {
                 'message': 'Return request submitted. Await library staff approval.',
@@ -1217,6 +1245,21 @@ class BorrowRequestViewSet(viewsets.ReadOnlyModelViewSet):
                 'borrow_request_id': borrow_request.pk,
                 'book_id': borrow_request.book_id,
                 'renewal_request_id': renewal_request.pk,
+            },
+        )
+        notify_librarian_dashboard(
+            notification_type='RENEWAL_REQUEST_SUBMITTED',
+            title='New renewal request',
+            message=(
+                f"{borrow_request.user.full_name} requested to renew '{borrow_request.book.title}'."
+            ),
+            data={
+                'portal': 'librarian',
+                'dashboard_section': 'desk-renewals',
+                'renewal_request_id': renewal_request.pk,
+                'borrow_request_id': borrow_request.pk,
+                'book_id': borrow_request.book_id,
+                'user_id': borrow_request.user_id,
             },
         )
 

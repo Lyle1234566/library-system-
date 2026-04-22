@@ -10,10 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
-import os
-import sys
-from pathlib import Path
 from datetime import timedelta
+import os
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+import sys
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -164,9 +165,9 @@ AUTO_RUN_BORROW_AUTOMATION_DAILY = True
 MAX_UNPAID_FINE_AMOUNT = 50.00
 RESERVATION_NOTIFICATION_HOURS = 24
 JAZZMIN_SETTINGS = {
-    "site_title": "Salazar Library System",
-    "site_header": "Salazar Library System",
-    "site_brand": "Salazar Library System",
+    "site_title": "SCSIT Library System",
+    "site_header": "SCSIT Library System",
+    "site_brand": "SCSIT Library System",
     "welcome_sign": "Welcome, Librarian",
     "theme": "flatly",
     "show_sidebar": True,
@@ -260,12 +261,13 @@ EMAIL_HOST = get_env_str('EMAIL_HOST')
 EMAIL_PORT = int(get_env_str('EMAIL_PORT', '587'))
 EMAIL_USE_TLS = get_env_bool('EMAIL_USE_TLS', True)
 EMAIL_HOST_USER = get_env_str('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = get_env_str('EMAIL_HOST_PASSWORD')
+EMAIL_HOST_PASSWORD = get_env_str('EMAIL_HOST_PASSWORD').replace(' ', '')
 DEFAULT_FROM_EMAIL = get_env_str('DEFAULT_FROM_EMAIL', 'no-reply@salazar-library.local')
 EMAIL_BRIDGE_URL = get_env_str('EMAIL_BRIDGE_URL')
 EMAIL_BRIDGE_SECRET = get_env_str('EMAIL_BRIDGE_SECRET')
 EMAIL_BRIDGE_TIMEOUT_SECONDS = get_env_int('EMAIL_BRIDGE_TIMEOUT_SECONDS', 15)
 LIBRARY_WEB_URL = get_env_str('LIBRARY_WEB_URL', DEFAULT_WEB_URL)
+CONTACT_ADMIN_EMAIL = get_env_str('CONTACT_ADMIN_EMAIL')
 if ENABLE_PRODUCTION_SECURITY and LIBRARY_WEB_URL == DEFAULT_WEB_URL:
     raise ImproperlyConfigured('LIBRARY_WEB_URL must be set when DEBUG is False.')
 PASSWORD_RESET_WEB_URL = get_env_str(
@@ -338,31 +340,61 @@ TEMPLATES = [
 WSGI_APPLICATION = 'backend.wsgi.application'
 
 # Database - Use environment variables for production
+DATABASE_URL = get_env_str('DATABASE_URL')
 DB_NAME = get_env_str('DB_NAME', 'library')
 DB_USER = get_env_str('DB_USER', 'postgres')
 DB_PASSWORD = get_env_str('DB_PASSWORD', 'postgre')
 DB_HOST = get_env_str('DB_HOST', 'localhost')
 DB_PORT = get_env_str('DB_PORT', '5432')
-if ENABLE_PRODUCTION_SECURITY:
-    for env_key in ('DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT'):
-        require_production_env(env_key)
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': DB_NAME,
-        'USER': DB_USER,
-        'PASSWORD': DB_PASSWORD,
-        'HOST': DB_HOST,
-        'PORT': DB_PORT,
-        'CONN_MAX_AGE': get_env_int('DB_CONN_MAX_AGE', 60 if ENABLE_PRODUCTION_SECURITY else 0),
-        'CONN_HEALTH_CHECKS': get_env_bool('DB_CONN_HEALTH_CHECKS', ENABLE_PRODUCTION_SECURITY),
-    }
+
+database_config = {
+    'ENGINE': 'django.db.backends.postgresql',
+    'CONN_MAX_AGE': get_env_int('DB_CONN_MAX_AGE', 60 if ENABLE_PRODUCTION_SECURITY else 0),
+    'CONN_HEALTH_CHECKS': get_env_bool('DB_CONN_HEALTH_CHECKS', ENABLE_PRODUCTION_SECURITY),
 }
+
+if DATABASE_URL:
+    parsed_database_url = urlparse(DATABASE_URL)
+    if parsed_database_url.scheme not in ('postgres', 'postgresql'):
+        raise ImproperlyConfigured('DATABASE_URL must use the postgres:// or postgresql:// scheme.')
+    database_config.update(
+        {
+            'NAME': parsed_database_url.path.lstrip('/'),
+            'USER': parsed_database_url.username or '',
+            'PASSWORD': parsed_database_url.password or '',
+            'HOST': parsed_database_url.hostname or '',
+            'PORT': str(parsed_database_url.port or '5432'),
+        }
+    )
+    query_options = {
+        key: values[-1]
+        for key, values in parse_qs(parsed_database_url.query, keep_blank_values=False).items()
+        if values
+    }
+    if query_options:
+        database_config['OPTIONS'] = query_options
+else:
+    if ENABLE_PRODUCTION_SECURITY:
+        for env_key in ('DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT'):
+            require_production_env(env_key)
+    database_config.update(
+        {
+            'NAME': DB_NAME,
+            'USER': DB_USER,
+            'PASSWORD': DB_PASSWORD,
+            'HOST': DB_HOST,
+            'PORT': DB_PORT,
+        }
+    )
+
 DB_SSLMODE = get_env_str('DB_SSLMODE')
 if DB_SSLMODE:
-    DATABASES['default']['OPTIONS'] = {
-        'sslmode': DB_SSLMODE,
-    }
+    database_config.setdefault('OPTIONS', {})
+    database_config['OPTIONS']['sslmode'] = DB_SSLMODE
+
+DATABASES = {
+    'default': database_config,
+}
 
 
 # Database
@@ -410,13 +442,15 @@ USE_TZ = True
 STATIC_URL = get_env_str('STATIC_URL', '/static/')
 STATIC_ROOT = Path(get_env_str('STATIC_ROOT', str(BASE_DIR / 'staticfiles')))
 MEDIA_URL = get_env_str('MEDIA_URL', '/media/')
-MEDIA_ROOT = Path(get_env_str('MEDIA_ROOT', str(BASE_DIR / 'media')))
+render_disk_media_root = Path('/var/data/media')
+default_media_root = render_disk_media_root if render_disk_media_root.parent.exists() else BASE_DIR / 'media'
+MEDIA_ROOT = Path(get_env_str('MEDIA_ROOT', str(default_media_root)))
 SERVE_MEDIA_FILES = get_env_bool('SERVE_MEDIA_FILES', DEBUG)
-if ENABLE_PRODUCTION_SECURITY and not get_env_str('MEDIA_ROOT'):
-    raise ImproperlyConfigured(
-        'MEDIA_ROOT must be set when DEBUG is False. Use a persistent path such as a mounted volume.'
-    )
-MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+
+# Only create MEDIA_ROOT if parent exists (disk is mounted)
+# On Render, disks are mounted at runtime, not during build
+if MEDIA_ROOT.parent.exists():
+    MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 STORAGES = {
     'default': {
         'BACKEND': 'django.core.files.storage.FileSystemStorage',

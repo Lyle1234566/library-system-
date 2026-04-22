@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html_join
 
 from .forms import CustomUserChangeForm, CustomUserCreationForm
-from .models import ContactMessage, EnrollmentRecord, Notification, User
+from .models import ContactMessage, EnrollmentRecord, Notification, TeacherRecord, User
 from books.models import BorrowRequest
 
 class UserAdmin(BaseUserAdmin):
@@ -76,7 +76,39 @@ class UserAdmin(BaseUserAdmin):
         js = ('user/admin-user-role.js',)
 
 admin.site.register(User, UserAdmin)
-admin.site.register(ContactMessage)
+
+
+@admin.register(ContactMessage)
+class ContactMessageAdmin(admin.ModelAdmin):
+    list_display = ('name', 'email', 'sender_role', 'sender_identifier', 'status', 'subject', 'created_at')
+    list_filter = ('status', 'created_at')
+    search_fields = (
+        'name',
+        'email',
+        'subject',
+        'message',
+        'internal_notes',
+        'user__full_name',
+        'user__student_id',
+        'user__staff_id',
+    )
+    readonly_fields = ('created_at', 'handled_at')
+    ordering = ('-created_at',)
+
+    def sender_role(self, obj):
+        if not obj.user:
+            return 'Guest'
+        if obj.user.role == 'WORKING' or (obj.user.role == 'STUDENT' and obj.user.is_working_student):
+            return 'Working Student'
+        return obj.user.get_role_display()
+
+    def sender_identifier(self, obj):
+        if not obj.user:
+            return '-'
+        return obj.user.staff_id or obj.user.student_id or '-'
+
+    sender_role.short_description = 'Sender role'
+    sender_identifier.short_description = 'Account ID'
 
 
 @admin.register(EnrollmentRecord)
@@ -94,6 +126,23 @@ class EnrollmentRecordAdmin(admin.ModelAdmin):
     list_filter = ('is_currently_enrolled', 'academic_term', 'year_level')
     search_fields = ('student_id', 'full_name', 'school_email', 'program')
     ordering = ('student_id',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(TeacherRecord)
+class TeacherRecordAdmin(admin.ModelAdmin):
+    list_display = (
+        'staff_id',
+        'full_name',
+        'school_email',
+        'department',
+        'academic_term',
+        'is_active',
+        'updated_at',
+    )
+    list_filter = ('is_active', 'department', 'academic_term')
+    search_fields = ('staff_id', 'full_name', 'school_email', 'department')
+    ordering = ('staff_id',)
     readonly_fields = ('created_at', 'updated_at')
 
 

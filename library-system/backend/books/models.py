@@ -4,7 +4,6 @@ from datetime import timedelta
 import logging
 
 from django.conf import settings
-from django.apps import apps
 from django.db import models
 from django.db.models import Q, Sum
 from django.db.models.signals import post_delete, post_save
@@ -13,35 +12,12 @@ from django.utils.html import escape
 from django.utils import timezone
 
 from backend.email_bridge import send_application_email
+from backend.notification_utils import (
+    create_user_notification,
+    notify_librarian_dashboard,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def create_user_notification(
-    *,
-    user_id: int | None,
-    notification_type: str,
-    title: str,
-    message: str,
-    data: dict | None = None,
-) -> None:
-    """
-    Best-effort in-app notification helper.
-    Uses apps.get_model to avoid direct cross-app imports.
-    """
-    if not user_id:
-        return
-    try:
-        Notification = apps.get_model('user', 'Notification')
-    except LookupError:
-        return
-    Notification.objects.create(
-        user_id=user_id,
-        notification_type=notification_type,
-        title=title,
-        message=message,
-        data=data or {},
-    )
 
 
 class Category(models.Model):
@@ -479,6 +455,29 @@ class BorrowRequest(models.Model):
                 ),
             },
         )
+        reporter_name = self.user.full_name or self.user.username
+        notify_librarian_dashboard(
+            notification_type='REPORT_SUBMITTED',
+            title='Student report submitted',
+            message=(
+                f"{reporter_name} submitted a "
+                f"{self.get_reporting_frequency_display().lower()} report for "
+                f"'{self.book.title}'."
+            ),
+            data={
+                'portal': 'librarian',
+                'dashboard_section': 'desk-notifications',
+                'borrow_request_id': self.pk,
+                'book_id': self.book_id,
+                'user_id': self.user_id,
+                'reporting_frequency': self.reporting_frequency,
+                'last_reported_at': self.last_reported_at.isoformat(),
+                'next_report_due_date': (
+                    str(self.next_report_due_date) if self.next_report_due_date else None
+                ),
+            },
+            dedupe=False,
+        )
         return self
 
     def should_send_due_soon_reminder(self, as_of=None) -> bool:
@@ -514,7 +513,7 @@ class BorrowRequest(models.Model):
             f"Open your library account here: {my_books_url}\n\n"
             f"Late fee rate: {late_fee_per_day} per day overdue.\n"
             "If you already requested a return, you can ignore this reminder.\n\n"
-            "Salazar Library System"
+            "SCSIT Library System"
         )
         html_body = f"""
             <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
@@ -535,7 +534,7 @@ class BorrowRequest(models.Model):
               </p>
               <p>Late fee rate: <strong>{escape(str(late_fee_per_day))}</strong> per day overdue.</p>
               <p>If you already requested a return, you can ignore this reminder.</p>
-              <p>Salazar Library System</p>
+              <p>SCSIT Library System</p>
             </div>
         """
 
@@ -1131,7 +1130,7 @@ def notify_next_pending_reservation(book: Book):
                     f"Hi {next_pending.user.full_name or next_pending.user.username},\n\n"
                     f"Your reserved book '{book.title}' is now available.\n"
                     f"Please borrow it before {expires_label}.\n\n"
-                    "Salazar Library System"
+                    "SCSIT Library System"
                 ),
                 fail_silently=True,
             )
@@ -1142,6 +1141,31 @@ def notify_next_pending_reservation(book: Book):
             )
 
     return next_pending
+
+
+def notify_librarian_about_overdue_borrow(borrow_request: BorrowRequest) -> None:
+    overdue_days = borrow_request.get_overdue_days(as_of=timezone.localdate())
+    if overdue_days <= 0:
+        return
+
+    due_date_label = borrow_request.due_date.isoformat() if borrow_request.due_date else None
+    notify_librarian_dashboard(
+        notification_type='OVERDUE_BOOK_ALERT',
+        title='Overdue book needs attention',
+        message=(
+            f"{borrow_request.user.full_name} has '{borrow_request.book.title}' overdue by "
+            f"{overdue_days} day{'s' if overdue_days != 1 else ''}."
+        ),
+        data={
+            'portal': 'librarian',
+            'dashboard_section': 'desk-overdue',
+            'borrow_request_id': borrow_request.pk,
+            'book_id': borrow_request.book_id,
+            'user_id': borrow_request.user_id,
+            'due_date': due_date_label,
+            'overdue_days': overdue_days,
+        },
+    )
 
 
 def run_borrow_automation(as_of=None, send_reminders=True):
@@ -1164,6 +1188,8 @@ def run_borrow_automation(as_of=None, send_reminders=True):
         borrow_request.sync_pending_fine_payment(as_of=as_of_date)
         if updated_fee != previous_fee:
             stats['fees_updated'] += 1
+        if borrow_request.get_overdue_days(as_of=as_of_date) > 0:
+            notify_librarian_about_overdue_borrow(borrow_request)
 
         if send_reminders and borrow_request.should_send_due_soon_reminder(as_of=as_of_date):
             try:
@@ -1193,6 +1219,8 @@ def sync_overdue_fine_payments(*, user_id: int | None = None, as_of=None) -> int
     for borrow_request in queryset.iterator():
         borrow_request.refresh_late_fee(as_of=as_of_date, commit=True)
         borrow_request.sync_pending_fine_payment(as_of=as_of_date)
+        if borrow_request.get_overdue_days(as_of=as_of_date) > 0:
+            notify_librarian_about_overdue_borrow(borrow_request)
         synced += 1
     return synced
 

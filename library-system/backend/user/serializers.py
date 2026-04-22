@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 
-from .models import Notification
+from .models import ContactMessage, Notification
 from .registration_rules import get_student_identifier_status, get_teacher_identifier_status
 
 User = get_user_model()
@@ -316,6 +316,72 @@ class ContactMessageSerializer(serializers.Serializer):
 
     def validate_email(self, value: str) -> str:
         return value.lower()
+
+
+def get_contact_message_sender_role(user) -> str:
+    if not user:
+        return 'Guest'
+    role = getattr(user, 'role', '')
+    if role == 'WORKING' or (role == 'STUDENT' and getattr(user, 'is_working_student', False)):
+        return 'Working Student'
+    return {
+        'STUDENT': 'Student',
+        'TEACHER': 'Teacher',
+        'LIBRARIAN': 'Librarian',
+        'STAFF': 'Staff',
+        'ADMIN': 'Admin',
+    }.get(role, 'Guest')
+
+
+class ContactMessageRecordSerializer(serializers.ModelSerializer):
+    sender_role = serializers.SerializerMethodField()
+    sender_identifier = serializers.SerializerMethodField()
+    handled_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ContactMessage
+        fields = (
+            'id',
+            'user_id',
+            'name',
+            'email',
+            'subject',
+            'message',
+            'internal_notes',
+            'status',
+            'created_at',
+            'handled_at',
+            'handled_by_id',
+            'handled_by_name',
+            'sender_role',
+            'sender_identifier',
+        )
+        read_only_fields = fields
+
+    def get_sender_role(self, obj: ContactMessage) -> str:
+        return get_contact_message_sender_role(obj.user)
+
+    def get_sender_identifier(self, obj: ContactMessage) -> str:
+        if not obj.user:
+            return ''
+        return str(getattr(obj.user, 'staff_id', '') or getattr(obj.user, 'student_id', '') or '').strip()
+
+    def get_handled_by_name(self, obj: ContactMessage) -> str | None:
+        if not obj.handled_by:
+            return None
+        return str(getattr(obj.handled_by, 'full_name', '') or getattr(obj.handled_by, 'username', '') or '').strip() or None
+
+
+class ContactMessageUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=ContactMessage.STATUS_CHOICES, required=False)
+    internal_notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError('At least one field must be provided.')
+        if 'internal_notes' in attrs:
+            attrs['internal_notes'] = attrs['internal_notes'].strip()
+        return attrs
 
 
 class NotificationSerializer(serializers.ModelSerializer):

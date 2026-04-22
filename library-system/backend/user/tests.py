@@ -18,7 +18,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from user.models import EnrollmentRecord, Notification, PasswordResetCode
+from user.models import ContactMessage, EnrollmentRecord, Notification, PasswordResetCode, TeacherRecord
 
 VALID_TEACHER_PASSWORD = 'TeacherPass123!'
 VALID_STUDENT_PASSWORD = 'StudentPass123!'
@@ -48,6 +48,7 @@ class NotificationApiTests(TestCase):
         response = self.client.get('/api/auth/notifications/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['unread_count'], 1)
+        self.assertEqual(response.data['total_count'], 1)
         self.assertEqual(len(response.data['results']), 1)
 
     def test_mark_notification_read(self):
@@ -71,6 +72,223 @@ class NotificationApiTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(self.user.get_unread_notifications_count(), 0)
 
+    def test_delete_notification(self):
+        response = self.client.delete(f'/api/auth/notifications/{self.notification.id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(Notification.objects.filter(pk=self.notification.id).exists())
+        self.assertEqual(response.data['unread_count'], 0)
+        self.assertEqual(response.data['total_count'], 0)
+
+
+@override_settings(
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+    EMAIL_BRIDGE_URL='',
+    EMAIL_BRIDGE_SECRET='',
+    CONTACT_ADMIN_EMAIL='admin-contact@example.com',
+)
+class ContactMessageSubmissionTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.teacher = user_model.objects.create_user(
+            username='contact-teacher',
+            password=VALID_TEACHER_PASSWORD,
+            full_name='Teacher Sender',
+            staff_id='T-4401',
+            email='teacher.sender@example.com',
+            role='TEACHER',
+            is_active=True,
+        )
+        self.admin_user = user_model.objects.create_user(
+            username='contact-admin',
+            password='AdminPass123!',
+            full_name='Contact Admin',
+            email='contact-admin@example.com',
+            role='ADMIN',
+            is_active=True,
+        )
+        self.librarian_user = user_model.objects.create_user(
+            username='contact-librarian',
+            password='LibrarianPass123!',
+            full_name='Contact Librarian',
+            staff_id='L-4401',
+            email='contact-librarian@example.com',
+            role='LIBRARIAN',
+            is_active=True,
+        )
+        self.working_user = user_model.objects.create_user(
+            username='contact-working',
+            password='WorkingPass123!',
+            full_name='Contact Working User',
+            student_id='S-4402',
+            email='contact-working@example.com',
+            role='WORKING',
+            is_active=True,
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.teacher)
+
+    def test_teacher_contact_message_notifies_admin_and_saves_message(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                '/api/auth/contact/',
+                {
+                    'name': 'Teacher Sender',
+                    'email': 'teacher.sender@example.com',
+                    'subject': 'Borrowing concern',
+                    'message': 'Please review my teacher borrowing request.',
+                },
+                format='json',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(ContactMessage.objects.count(), 1)
+
+        contact_message = ContactMessage.objects.get()
+        self.assertEqual(contact_message.user, self.teacher)
+        self.assertEqual(contact_message.subject, 'Borrowing concern')
+        self.assertEqual(contact_message.status, ContactMessage.STATUS_NEW)
+        self.assertEqual(contact_message.internal_notes, '')
+
+        admin_notification = Notification.objects.get(
+            user=self.admin_user,
+            notification_type=Notification.TYPE_CONTACT_MESSAGE_RECEIVED,
+        )
+        librarian_notification = Notification.objects.get(
+            user=self.librarian_user,
+            notification_type=Notification.TYPE_CONTACT_MESSAGE_RECEIVED,
+        )
+        self.assertEqual(admin_notification.data['dashboard_section'], 'desk-contact')
+        self.assertEqual(admin_notification.data['sender_role'], 'Teacher')
+        self.assertEqual(admin_notification.data['sender_identifier'], 'T-4401')
+        self.assertEqual(admin_notification.data['contact_message_id'], contact_message.id)
+        self.assertEqual(librarian_notification.data['dashboard_section'], 'desk-contact')
+        self.assertEqual(librarian_notification.data['portal'], 'librarian')
+        self.assertFalse(
+            Notification.objects.filter(
+                user=self.working_user,
+                notification_type=Notification.TYPE_CONTACT_MESSAGE_RECEIVED,
+            ).exists()
+        )
+
+        recipients = sorted(email.to[0] for email in mail.outbox)
+        self.assertEqual(
+            recipients,
+            sorted([
+                'admin-contact@example.com',
+                'contact-admin@example.com',
+                'contact-librarian@example.com',
+            ]),
+        )
+        self.assertTrue(any('Borrowing concern' in email.subject for email in mail.outbox))
+        self.assertTrue(any('New contact message from Teacher Sender' in email.subject for email in mail.outbox))
+        self.assertTrue(any('Role: Teacher' in email.body for email in mail.outbox))
+        self.assertTrue(any('Account ID: T-4401' in email.body for email in mail.outbox))
+
+
+class ContactMessageManagementApiTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.teacher = user_model.objects.create_user(
+            username='contact-teacher-api',
+            password=VALID_TEACHER_PASSWORD,
+            full_name='Teacher Api Sender',
+            staff_id='T-5501',
+            email='teacher.api@example.com',
+            role='TEACHER',
+            is_active=True,
+        )
+        self.librarian = user_model.objects.create_user(
+            username='contact-librarian-api',
+            password='LibrarianPass123!',
+            full_name='Librarian Api User',
+            staff_id='L-5501',
+            email='librarian.api@example.com',
+            role='LIBRARIAN',
+            is_active=True,
+        )
+        self.admin_user = user_model.objects.create_user(
+            username='contact-admin-api',
+            password='AdminPass123!',
+            full_name='Admin Api User',
+            email='admin.api@example.com',
+            role='ADMIN',
+            is_active=True,
+        )
+        self.working_user = user_model.objects.create_user(
+            username='contact-working-api',
+            password='WorkingPass123!',
+            full_name='Working Api User',
+            student_id='S-5501',
+            email='working.api@example.com',
+            role='WORKING',
+            is_active=True,
+        )
+        self.contact_message = ContactMessage.objects.create(
+            user=self.teacher,
+            name='Teacher Api Sender',
+            email='teacher.api@example.com',
+            subject='API help',
+            message='Need a contact inbox page.',
+        )
+        self.resolved_message = ContactMessage.objects.create(
+            name='Guest Sender',
+            email='guest.sender@example.com',
+            subject='Guest feedback',
+            message='Thank you for the service.',
+            status=ContactMessage.STATUS_RESOLVED,
+            internal_notes='Archived after reply.',
+            handled_by=self.admin_user,
+            handled_at=timezone.now(),
+        )
+        self.client = APIClient()
+
+    def test_librarian_can_list_contact_messages(self):
+        self.client.force_authenticate(user=self.librarian)
+
+        response = self.client.get('/api/auth/contact/messages/?limit=10')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total_count'], 2)
+        self.assertEqual(response.data['filtered_count'], 2)
+        self.assertEqual(response.data['status_counts']['NEW'], 1)
+        self.assertEqual(response.data['status_counts']['RESOLVED'], 1)
+        self.assertEqual(response.data['results'][0]['id'], self.resolved_message.id)
+        self.assertEqual(response.data['results'][1]['sender_role'], 'Teacher')
+        self.assertEqual(response.data['results'][1]['sender_identifier'], 'T-5501')
+
+    def test_librarian_can_update_contact_message_status_and_notes(self):
+        self.client.force_authenticate(user=self.librarian)
+
+        response = self.client.patch(
+            f'/api/auth/contact/messages/{self.contact_message.id}/',
+            {
+                'status': ContactMessage.STATUS_IN_PROGRESS,
+                'internal_notes': 'Followed up with the teacher by email.',
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.contact_message.refresh_from_db()
+        self.assertEqual(self.contact_message.status, ContactMessage.STATUS_IN_PROGRESS)
+        self.assertEqual(self.contact_message.internal_notes, 'Followed up with the teacher by email.')
+        self.assertEqual(self.contact_message.handled_by, self.librarian)
+        self.assertIsNotNone(self.contact_message.handled_at)
+
+    def test_working_user_cannot_access_contact_messages(self):
+        self.client.force_authenticate(user=self.working_user)
+
+        list_response = self.client.get('/api/auth/contact/messages/')
+        patch_response = self.client.patch(
+            f'/api/auth/contact/messages/{self.contact_message.id}/',
+            {'status': ContactMessage.STATUS_RESOLVED},
+            format='json',
+        )
+
+        self.assertEqual(list_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(patch_response.status_code, status.HTTP_403_FORBIDDEN)
+
 
 class StudentApprovalPermissionTests(TestCase):
     def setUp(self):
@@ -80,6 +298,7 @@ class StudentApprovalPermissionTests(TestCase):
             password='test-pass-123',
             full_name='Pending Student',
             student_id='S-3001',
+            email='pending-student@example.com',
             role='STUDENT',
             is_active=False,
         )
@@ -88,6 +307,7 @@ class StudentApprovalPermissionTests(TestCase):
             password='test-pass-123',
             full_name='Pending Teacher',
             staff_id='T-3001',
+            email='pending-teacher@example.com',
             role='TEACHER',
             is_active=False,
         )
@@ -198,6 +418,63 @@ class StudentApprovalPermissionTests(TestCase):
         self.assertTrue(self.pending_student.is_active)
         self.assertTrue(self.pending_student.is_working_student)
 
+    def test_pending_working_account_is_listed_and_can_be_approved(self):
+        user_model = get_user_model()
+        pending_working = user_model.objects.create_user(
+            username='pending-working-student',
+            password='test-pass-123',
+            full_name='Pending Working Student',
+            student_id='S-3004',
+            email='pending-working@example.com',
+            role='WORKING',
+            is_active=False,
+        )
+        self.client.force_authenticate(user=self.librarian_user)
+
+        list_response = self.client.get('/api/auth/pending-accounts/')
+
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            any(
+                account['id'] == pending_working.id and account['role'] == 'WORKING'
+                for account in list_response.data['results']
+            )
+        )
+
+        approve_response = self.client.post(
+            f'/api/auth/approve-account/{pending_working.id}/',
+            {},
+            format='json',
+        )
+
+        self.assertEqual(approve_response.status_code, status.HTTP_200_OK)
+        pending_working.refresh_from_db()
+        self.assertTrue(pending_working.is_active)
+        self.assertTrue(pending_working.is_working_student)
+
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_BRIDGE_URL='',
+        EMAIL_BRIDGE_SECRET='',
+        LIBRARY_WEB_URL='http://localhost:3000',
+    )
+    def test_account_approval_sends_email_to_approved_user(self):
+        self.client.force_authenticate(user=self.librarian_user)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            approve_response = self.client.post(
+                f'/api/auth/approve-account/{self.pending_student.id}/',
+                {},
+                format='json',
+            )
+
+        self.assertEqual(approve_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.pending_student.email])
+        self.assertEqual(mail.outbox[0].subject, 'Library Account Approved')
+        self.assertIn('approved', mail.outbox[0].body.lower())
+        self.assertIn('http://localhost:3000/login', mail.outbox[0].body)
+
     def test_staff_cannot_view_or_approve_pending_students(self):
         user_model = get_user_model()
         pending_student = user_model.objects.create_user(
@@ -226,6 +503,41 @@ class StudentApprovalPermissionTests(TestCase):
 class TeacherRegistrationTests(TestCase):
     def setUp(self):
         self.client = APIClient()
+        self.librarian = get_user_model().objects.create_user(
+            username='registration-librarian',
+            password='test-pass-123',
+            full_name='Registration Librarian',
+            staff_id='L-8801',
+            email='registration-librarian@example.com',
+            role='LIBRARIAN',
+            is_active=True,
+        )
+        self.working_reviewer = get_user_model().objects.create_user(
+            username='registration-working-reviewer',
+            password='test-pass-123',
+            full_name='Working Reviewer',
+            student_id='S-8800',
+            email='registration-working-reviewer@example.com',
+            role='STUDENT',
+            is_working_student=True,
+            is_active=True,
+        )
+        TeacherRecord.objects.create(
+            staff_id='T-8801',
+            full_name='Teacher Applicant',
+            school_email='teacher-applicant@example.com',
+            department='Education',
+            academic_term='2025-2026',
+            is_active=True,
+        )
+        TeacherRecord.objects.create(
+            staff_id='T-8802',
+            full_name='Teacher Applicant 2',
+            school_email='teacher-applicant-2@example.com',
+            department='Science',
+            academic_term='2025-2026',
+            is_active=True,
+        )
 
     def test_teacher_can_register_with_faculty_id(self):
         response = self.client.post(
@@ -246,6 +558,22 @@ class TeacherRegistrationTests(TestCase):
         self.assertEqual(response.data['user']['staff_id'], 'T-8801')
         self.assertFalse(response.data['user']['is_active'])
         self.assertNotIn('access', response.data)
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.librarian,
+                notification_type='ACCOUNT_PENDING_APPROVAL',
+                data__user_id=response.data['user']['id'],
+                data__portal='librarian',
+            ).exists()
+        )
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.working_reviewer,
+                notification_type='ACCOUNT_PENDING_APPROVAL',
+                data__user_id=response.data['user']['id'],
+                data__portal='staff',
+            ).exists()
+        )
 
     def test_teacher_registration_requires_faculty_id(self):
         response = self.client.post(
@@ -305,7 +633,45 @@ class TeacherRegistrationTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data['available'])
-        self.assertIn('available', response.data['message'].lower())
+        self.assertEqual(response.data['reason'], 'available')
+        self.assertIn('teacher records', response.data['message'].lower())
+
+    def test_teacher_registration_rejects_unknown_faculty_id(self):
+        response = self.client.post(
+            '/api/auth/register/',
+            {
+                'role': 'TEACHER',
+                'staff_id': 'T-9999',
+                'full_name': 'Unknown Teacher',
+                'email': 'unknown-teacher@example.com',
+                'password': VALID_TEACHER_PASSWORD,
+                'password_confirm': VALID_TEACHER_PASSWORD,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('staff_id', response.data)
+        self.assertIn('teacher records', str(response.data['staff_id'][0]).lower())
+
+    def test_teacher_identifier_check_reports_inactive_teacher_record(self):
+        TeacherRecord.objects.create(
+            staff_id='T-8803',
+            full_name='Inactive Teacher',
+            school_email='inactive-teacher@example.com',
+            department='Arts',
+            academic_term='2025-2026',
+            is_active=False,
+        )
+
+        response = self.client.get(
+            '/api/auth/check-account-identifier/?role=TEACHER&identifier=T-8803'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data['available'])
+        self.assertEqual(response.data['reason'], 'inactive_teacher_record')
+        self.assertIn('active', response.data['message'].lower())
 
     def test_teacher_faculty_id_cannot_be_reused(self):
         create_response = self.client.post(

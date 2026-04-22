@@ -98,9 +98,9 @@ AUTO_RUN_BORROW_AUTOMATION_DAILY = True
 MAX_UNPAID_FINE_AMOUNT = 50.00
 RESERVATION_NOTIFICATION_HOURS = 24
 JAZZMIN_SETTINGS = {
-    "site_title": "Salazar Library System",
-    "site_header": "Salazar Library System",
-    "site_brand": "Salazar Library System",
+    "site_title": "SCSIT Library System",
+    "site_header": "SCSIT Library System",
+    "site_brand": "SCSIT Library System",
     "welcome_sign": "Welcome, Librarian",
     "theme": "flatly",
     "show_sidebar": True,
