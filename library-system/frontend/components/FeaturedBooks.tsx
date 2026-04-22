@@ -10,28 +10,56 @@ export default function FeaturedBooks() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
-  const [, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
 
+    let isActive = true;
+
     const fetchBooks = async () => {
       setLoading(true);
       const response = await booksApi.getAll();
+
+      if (!isActive) {
+        return;
+      }
 
       if (response.error || !response.data) {
         setError(response.error ?? 'Unable to load books.');
         setBooks([]);
       } else {
         setError(null);
-        setBooks(response.data.slice(0, 8));
+        const featuredBooks = [...response.data]
+          .sort((left, right) => {
+            const leftScore =
+              (left.available ? 1000 : 0)
+              + (left.review_count ?? 0) * 10
+              + Math.round((left.average_rating ?? 0) * 10);
+            const rightScore =
+              (right.available ? 1000 : 0)
+              + (right.review_count ?? 0) * 10
+              + Math.round((right.average_rating ?? 0) * 10);
+
+            if (leftScore !== rightScore) {
+              return rightScore - leftScore;
+            }
+            return left.title.localeCompare(right.title);
+          })
+          .slice(0, 8);
+
+        setBooks(featuredBooks);
       }
 
       setLoading(false);
     };
 
     void fetchBooks();
-  }, [authLoading]);
+
+    return () => {
+      isActive = false;
+    };
+  }, [authLoading, isAuthenticated]);
 
   return (
     <section className="relative pt-6 pb-8 bg-[#0b2134]">
@@ -112,6 +140,19 @@ export default function FeaturedBooks() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {!authLoading && !loading && books.length === 0 && (
+          <div className="mx-auto max-w-2xl rounded-3xl border border-white/12 bg-white/5 px-6 py-10 text-center shadow-[0_20px_36px_rgba(2,6,23,0.34)] backdrop-blur-xl">
+            <h3 className="text-xl font-semibold text-white">
+              {error ? 'Featured books are unavailable right now' : 'No featured books yet'}
+            </h3>
+            <p className="mt-2 text-sm text-white/70">
+              {error
+                ? error
+                : 'Add books to the catalog to populate this section.'}
+            </p>
           </div>
         )}
 

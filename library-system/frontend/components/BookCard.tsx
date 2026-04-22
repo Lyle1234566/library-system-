@@ -201,7 +201,7 @@ export default function BookCard({ book, readOnly = false }: BookCardProps) {
                   <span className="truncate">{categoryChipLabel}</span>
                 </span>
                 <span
-                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] backdrop-blur-sm ${
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] backdrop-blur-sm ${
                     localBook.available
                       ? 'border-sky-300/40 bg-sky-500/25 text-sky-100'
                       : 'border-slate-300/35 bg-slate-400/20 text-slate-100'
@@ -227,7 +227,7 @@ export default function BookCard({ book, readOnly = false }: BookCardProps) {
               <div className="mt-1 flex items-center gap-1">
                 <span className="text-xs text-sky-200">{renderStars(averageRating)}</span>
                 <span className="text-xs text-white/50">
-                  ({averageRating.toFixed(1)}) · {reviewCount} review
+                  ({averageRating.toFixed(1)}) {'\u00B7'} {reviewCount} review
                   {reviewCount !== 1 ? 's' : ''}
                 </span>
               </div>
