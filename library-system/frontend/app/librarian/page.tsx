@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import ContactInboxPanel from '@/components/librarian/ContactInboxPanel';
 import { useAuth } from '@/contexts/AuthContext';
@@ -279,7 +279,7 @@ async function parseResponseData<T>(response: Response): Promise<T | null> {
   }
 }
 
-export default function LibrarianDeskPage() {
+function LibrarianDeskPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, logout } = useAuth();
@@ -5991,5 +5991,13 @@ export default function LibrarianDeskPage() {
         </div>
       </div>
     </ProtectedRoute>
+  );
+}
+
+export default function LibrarianDeskPage() {
+  return (
+    <Suspense>
+      <LibrarianDeskPageInner />
+    </Suspense>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -133,7 +133,7 @@ const formatRelativeTime = (value?: string | null) => {
   return 'Just now';
 };
 
-export default function StaffDeskPage() {
+function StaffDeskPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, logout } = useAuth();
@@ -1784,5 +1784,13 @@ export default function StaffDeskPage() {
         </div>
       </div>
     </ProtectedRoute>
+  );
+}
+
+export default function StaffDeskPage() {
+  return (
+    <Suspense>
+      <StaffDeskPageInner />
+    </Suspense>
   );
 }
