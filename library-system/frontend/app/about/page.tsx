@@ -29,7 +29,7 @@ export default function AboutPage() {
               A calmer, smarter way to manage your library
             </h1>
             <p className="mt-4 text-white/70 max-w-2xl animate-fade-up delay-200">
-              Salazar Library System blends thoughtful design with dependable systems so students can spend
+              SCSIT Library System blends thoughtful design with dependable systems so students can spend
               less time waiting and more time reading.
             </p>
             <AboutStatsGrid />

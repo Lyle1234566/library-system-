@@ -4,12 +4,12 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/components/ToastProvider";
 
 export const metadata: Metadata = {
-  title: "Salazar Library System",
-  description: "Salazar Library System for students and modern borrowing workflows",
+  title: "SCSIT Library System",
+  description: "SCSIT Library System for students and modern borrowing workflows",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Salazar Library System",
+    title: "SCSIT Library System",
   },
 };
 
@@ -18,7 +18,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
-  themeColor: "#0284c7",
+  themeColor: "#8edbff",
 };
 
 export default function RootLayout({

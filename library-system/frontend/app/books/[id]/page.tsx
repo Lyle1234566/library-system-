@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -9,6 +9,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import BorrowSlip from '@/components/BorrowSlip';
 import CatalogAccessPrompt from '@/components/CatalogAccessPrompt';
+import BookCard from '@/components/BookCard';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   booksApi,
@@ -54,239 +55,19 @@ type CoverState = {
   side: 'front' | 'back';
 };
 
-type BorrowSelectOption = {
-  value: string;
-  label: string;
-  description?: string;
-};
-
-const courseProgramOptions: BorrowSelectOption[] = [
-  {
-    value: 'BS Information Technology',
-    label: 'BS Information Technology',
-    description: 'Computing and software systems',
-  },
-  {
-    value: 'BS Computer Science',
-    label: 'BS Computer Science',
-    description: 'Algorithms, data, and systems',
-  },
-  {
-    value: 'BS Business Administration',
-    label: 'BS Business Administration',
-    description: 'Management and entrepreneurship',
-  },
-  {
-    value: 'BS Accountancy',
-    label: 'BS Accountancy',
-    description: 'Financial analysis and auditing',
-  },
-  {
-    value: 'BS Psychology',
-    label: 'BS Psychology',
-    description: 'Behavioral and social sciences',
-  },
-  {
-    value: 'BS Nursing',
-    label: 'BS Nursing',
-    description: 'Healthcare and clinical practice',
-  },
-  {
-    value: 'BS Education',
-    label: 'BS Education',
-    description: 'Teaching and curriculum design',
-  },
-  {
-    value: 'BS Engineering',
-    label: 'BS Engineering',
-    description: 'Applied science and design',
-  },
-  {
-    value: 'BS Architecture',
-    label: 'BS Architecture',
-    description: 'Built environment and planning',
-  },
-  {
-    value: 'AB Communication',
-    label: 'AB Communication',
-    description: 'Media, writing, and public speaking',
-  },
-  {
-    value: 'AB Political Science',
-    label: 'AB Political Science',
-    description: 'Government, policy, and governance',
-  },
-  {
-    value: 'Other',
-    label: 'Other',
-    description: 'Program not listed above',
-  },
-];
-
-const yearLevelOptions: BorrowSelectOption[] = [
-  {
-    value: '1st Year',
-    label: '1st Year',
-    description: 'Freshman level',
-  },
-  {
-    value: '2nd Year',
-    label: '2nd Year',
-    description: 'Sophomore level',
-  },
-  {
-    value: '3rd Year',
-    label: '3rd Year',
-    description: 'Junior level',
-  },
-  {
-    value: '4th Year',
-    label: '4th Year',
-    description: 'Senior level',
-  },
-];
-
-function BorrowFormSelect({
+function StaticBorrowField({
   value,
-  onChange,
-  options,
-  placeholder,
-  menuLabel,
+  placeholder = 'Not provided',
 }: {
-  value: string;
-  onChange: (nextValue: string) => void;
-  options: BorrowSelectOption[];
-  placeholder: string;
-  menuLabel: string;
+  value?: string | null;
+  placeholder?: string;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const selectedOption = options.find((option) => option.value === value);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleEscape);
-
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [isOpen]);
+  const displayValue = value?.trim() ? value : placeholder;
+  const isPlaceholder = displayValue === placeholder;
 
   return (
-    <div ref={rootRef} className="relative mt-2">
-      <button
-        type="button"
-        aria-haspopup="listbox"
-        aria-expanded={isOpen}
-        onClick={() => setIsOpen((current) => !current)}
-        className={`group relative w-full overflow-hidden rounded-[1.2rem] border px-4 pb-3 pt-3.5 text-left transition-all duration-300 ${
-          isOpen
-            ? 'border-sky-300/80 bg-[linear-gradient(180deg,rgba(56,189,248,0.16),rgba(255,255,255,0.08))] shadow-[0_18px_42px_rgba(14,165,233,0.22)]'
-            : 'border-white/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.04))] hover:border-white/25 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.11),rgba(255,255,255,0.05))]'
-        }`}
-      >
-        <span className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
-        <span
-          className={`block pr-10 text-[15px] font-medium leading-6 ${
-            selectedOption ? 'text-white' : 'text-white/50'
-          }`}
-        >
-          {selectedOption?.label ?? placeholder}
-        </span>
-        <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.24em] text-white/35">
-          {selectedOption?.description ?? 'Refined selection menu'}
-        </span>
-        <ChevronDown
-          className={`absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/55 transition-all duration-300 ${
-            isOpen ? 'rotate-180 text-sky-200' : 'group-hover:text-white/75'
-          }`}
-        />
-      </button>
-
-      {isOpen && (
-        <div className="animate-fade-up absolute left-0 right-0 top-[calc(100%+0.7rem)] z-40 overflow-hidden rounded-[1.45rem] border border-sky-300/25 bg-[linear-gradient(180deg,rgba(11,19,36,0.98),rgba(15,27,47,0.96))] shadow-[0_28px_80px_rgba(2,8,23,0.62)] backdrop-blur-xl">
-          <div className="border-b border-white/10 bg-white/[0.04] px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-sky-100/80">
-                {menuLabel}
-              </p>
-              <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">
-                {options.length} Options
-              </span>
-            </div>
-          </div>
-
-          <div role="listbox" className="max-h-72 overflow-y-auto py-2">
-            {options.map((option) => {
-              const isSelected = option.value === value;
-
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  role="option"
-                  aria-selected={isSelected}
-                  onClick={() => {
-                    onChange(option.value);
-                    setIsOpen(false);
-                  }}
-                  className={`group flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-200 ${
-                    isSelected ? 'bg-sky-400/12' : 'hover:bg-white/[0.05]'
-                  }`}
-                >
-                  <span
-                    className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border transition-all ${
-                      isSelected
-                        ? 'border-sky-200 bg-sky-300 shadow-[0_0_16px_rgba(125,211,252,0.55)]'
-                        : 'border-white/20 bg-transparent group-hover:border-sky-200/40'
-                    }`}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span
-                      className={`block text-sm font-medium ${
-                        isSelected ? 'text-white' : 'text-white/90 group-hover:text-white'
-                      }`}
-                    >
-                      {option.label}
-                    </span>
-                    {option.description ? (
-                      <span
-                        className={`mt-1 block text-[10px] font-semibold uppercase tracking-[0.24em] ${
-                          isSelected ? 'text-sky-100/70' : 'text-white/35'
-                        }`}
-                      >
-                        {option.description}
-                      </span>
-                    ) : null}
-                  </span>
-                  {isSelected ? (
-                    <span className="rounded-full border border-sky-300/25 bg-sky-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-100">
-                      Selected
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+    <div className="mt-2 w-full rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm">
+      <span className={isPlaceholder ? 'text-white/45' : 'text-white/80'}>{displayValue}</span>
     </div>
   );
 }
@@ -300,7 +81,7 @@ function RatingStars({ rating, className = 'h-4 w-4' }: { rating: number; classN
         <Star
           key={index}
           className={`${className} ${
-            index < filledStars ? 'fill-amber-400 text-amber-400' : 'text-white/20'
+            index < filledStars ? 'fill-[#9fdfff] text-[#9fdfff]' : 'text-white/20'
           }`}
         />
       ))}
@@ -322,7 +103,8 @@ export default function BookDetailsPage() {
   const [returnStatus, setReturnStatus] = useState<RequestStatusState | null>(null);
   const [reservationStatus, setReservationStatus] = useState<RequestStatusState | null>(null);
   const [showBorrowModal, setShowBorrowModal] = useState(false);
-  const [borrowDays, setBorrowDays] = useState(14);
+  const [studentBorrowDurationDays, setStudentBorrowDurationDays] = useState<7 | 14>(14);
+  const [studentBorrowFormError, setStudentBorrowFormError] = useState<string | null>(null);
   const [teacherReportingFrequency, setTeacherReportingFrequency] = useState<
     Exclude<ReportingFrequency, 'NONE'>
   >('MONTHLY');
@@ -332,16 +114,11 @@ export default function BookDetailsPage() {
     student_id: '',
     course_program: '',
     year_level: '',
-    contact_number: '',
     email: '',
     call_number: '',
-    accession_number: '',
     quantity: '1',
     return_date: '',
-    borrower_signature: '',
-    condition: 'GOOD',
-    remarks: '',
-    agreementAccepted: false,
+    agreed_to_policies: false,
   });
 
   // Review state
@@ -556,21 +333,15 @@ export default function BookDetailsPage() {
   const reservationSubmitting = activeReservationStatus?.submitting ?? false;
   const reservationError = activeReservationStatus?.error ?? null;
   const reservationMessage = activeReservationStatus?.message ?? null;
-  const borrowDayOptions = [7, 14];
-  const getEstimatedDueDateLabel = (days: number) => {
-    const dueDate = new Date(todayReference);
-    dueDate.setDate(dueDate.getDate() + days);
-    return dueDate.toLocaleDateString();
-  };
   const borrowedDateInput = useMemo(
     () => formatDateInput(todayReference),
     [todayReference]
   );
   const dueDateInput = useMemo(() => {
     const dueDate = new Date(todayReference);
-    dueDate.setDate(dueDate.getDate() + borrowDays);
+    dueDate.setDate(dueDate.getDate() + studentBorrowDurationDays);
     return formatDateInput(dueDate);
-  }, [borrowDays, todayReference]);
+  }, [studentBorrowDurationDays, todayReference]);
 
   const handleBorrowRequest = async () => {
     if (!book || borrowSubmitting) {
@@ -632,10 +403,11 @@ export default function BookDetailsPage() {
       full_name: user?.full_name ?? prev.full_name,
       student_id: user?.student_id ?? prev.student_id,
       email: user?.email ?? prev.email,
-      borrower_signature: user?.full_name ?? prev.borrower_signature,
       quantity: prev.quantity || '1',
-      agreementAccepted: false,
+      agreed_to_policies: false,
     }));
+    setStudentBorrowDurationDays(14);
+    setStudentBorrowFormError(null);
     setShowBorrowModal(true);
   };
 
@@ -667,6 +439,11 @@ export default function BookDetailsPage() {
       return;
     }
 
+    if (!isTeacher && !studentBorrowForm.agreed_to_policies) {
+      setStudentBorrowFormError('Please check the agreement and policies before confirming your request.');
+      return;
+    }
+
     setShowBorrowModal(false);
     setBorrowStatus({
       bookId: requestBookId,
@@ -678,7 +455,7 @@ export default function BookDetailsPage() {
       book.id,
       user?.role === 'TEACHER'
         ? { reportingFrequency: teacherReportingFrequency }
-        : borrowDays,
+        : { borrowDays: studentBorrowDurationDays },
     );
 
     if (response.error || !response.data) {
@@ -698,7 +475,7 @@ export default function BookDetailsPage() {
       message:
         user?.role === 'TEACHER'
           ? `Teacher borrow request submitted with ${teacherReportingFrequency.toLowerCase()} reporting. ${response.data.message ?? ''}`
-          : `Borrow request submitted for ${borrowDays} days. ${response.data.message ?? ''}`,
+          : `Borrow request submitted. ${response.data.message ?? ''}`,
     });
     if (response.data.book) {
       setBook(response.data.book);
@@ -713,7 +490,7 @@ export default function BookDetailsPage() {
     if (isStudentBorrower) {
       const borrowDate = new Date();
       const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + borrowDays);
+      dueDate.setDate(dueDate.getDate() + studentBorrowDurationDays);
       
       setBorrowSlipData({
         studentName: studentBorrowForm.full_name || user?.full_name || '',
@@ -723,7 +500,7 @@ export default function BookDetailsPage() {
           : '',
         bookTitle: book.title,
         author: book.author || 'Unknown Author',
-        callNumber: studentBorrowForm.call_number || studentBorrowForm.accession_number || 'N/A',
+        callNumber: studentBorrowForm.call_number || 'N/A',
         dateBorrowed: borrowDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
         dueDate: dueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
       });
@@ -735,6 +512,7 @@ export default function BookDetailsPage() {
     field: keyof typeof studentBorrowForm,
     value: string | boolean
   ) => {
+    setStudentBorrowFormError(null);
     setStudentBorrowForm((prev) => ({
       ...prev,
       [field]: value,
@@ -950,23 +728,9 @@ export default function BookDetailsPage() {
   const hasStatusMessage = Boolean(
     borrowError || borrowMessage || returnError || returnMessage || reservationError || reservationMessage
   );
-  const heroCategoryLabel = loading ? 'UNCATEGORIZED' : featuredCategory.toUpperCase();
-  const heroStatusLabel = loading || !book ? 'LOADING' : book.available ? 'AVAILABLE' : 'BORROWED';
-  const heroStatusChipClass =
-    loading || !book
-      ? 'border-white/20 bg-white/10 text-white/70'
-      : book.available
-        ? 'border-emerald-300/30 bg-emerald-500/20 text-emerald-100'
-        : 'border-amber-300/30 bg-amber-500/20 text-amber-100';
-  const heroStatusDotClass =
-    loading || !book
-      ? 'bg-white/40'
-      : book.available
-        ? 'bg-emerald-400'
-        : 'bg-amber-400';
   const availabilityBadgeClass = book?.available
-    ? 'border-emerald-300/30 bg-emerald-500/20 text-emerald-100'
-    : 'border-amber-300/30 bg-amber-500/20 text-amber-100';
+    ? 'border-sky-300/30 bg-sky-400/18 text-sky-100'
+    : 'border-slate-300/30 bg-slate-400/18 text-slate-100';
   const availabilityMessage = book
     ? book.available
       ? `${availableCopies} of ${totalCopies} copies are currently available.`
@@ -986,10 +750,10 @@ export default function BookDetailsPage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#0b1324] text-white">
+      <div className="min-h-screen bg-[#071825] text-white">
         <Navbar variant="dark" />
         <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center pt-16">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-500 border-r-transparent" />
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-sky-300 border-r-transparent" />
         </main>
         <Footer />
       </div>
@@ -1002,16 +766,16 @@ export default function BookDetailsPage() {
     )}`;
 
     return (
-      <div className="min-h-screen bg-[#0b1324] text-white">
+      <div className="min-h-screen bg-[#071825] text-white">
         <Navbar variant="dark" />
         <main className="pt-14 sm:pt-16">
-          <section className="relative overflow-hidden border-b border-white/10 bg-gradient-to-br from-[#0a1221] via-[#0e1629] to-[#0b1324]">
+          <section className="relative overflow-hidden border-b border-white/10 bg-gradient-to-br from-[#081c2d] via-[#0d2740] to-[#071825]">
             <div className="pointer-events-none absolute inset-0">
-              <div className="absolute -top-28 right-[-4rem] h-80 w-80 rounded-full bg-sky-500/12 blur-3xl" />
-              <div className="absolute -bottom-24 left-[-5rem] h-72 w-72 rounded-full bg-amber-400/10 blur-3xl" />
+              <div className="absolute -top-28 right-[-4rem] h-80 w-80 rounded-full bg-sky-300/14 blur-3xl" />
+              <div className="absolute -bottom-24 left-[-5rem] h-72 w-72 rounded-full bg-sky-200/12 blur-3xl" />
             </div>
             <div className="relative mx-auto max-w-5xl px-4 py-16 text-center sm:px-6 sm:py-20 lg:px-8">
-              <p className="text-sky-200/90 text-xs font-semibold uppercase tracking-[0.35em]">
+              <p className="text-sky-100/90 text-xs font-semibold uppercase tracking-[0.35em]">
                 Private Book View
               </p>
               <h1 className="mt-5 text-4xl font-semibold text-white sm:text-5xl">
@@ -1039,14 +803,14 @@ export default function BookDetailsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b1324] text-white">
+    <div className="min-h-screen bg-[#071825] text-white">
       <Navbar variant="dark" />
       <main className="pt-14 sm:pt-16">
-        <section className="relative overflow-hidden border-b border-white/10 bg-gradient-to-br from-[#0a1221] via-[#0e1629] to-[#0b1324]">
+        <section className="relative overflow-hidden border-b border-white/10 bg-gradient-to-br from-[#081c2d] via-[#0d2740] to-[#071825]">
           <div className="pointer-events-none absolute inset-0">
-            <div className="absolute -top-28 right-[-4rem] h-80 w-80 rounded-full bg-sky-500/12 blur-3xl" />
-            <div className="absolute -bottom-24 left-[-5rem] h-72 w-72 rounded-full bg-amber-400/10 blur-3xl" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(56,189,248,0.14),transparent_42%)]" />
+            <div className="absolute -top-28 right-[-4rem] h-80 w-80 rounded-full bg-sky-300/14 blur-3xl" />
+            <div className="absolute -bottom-24 left-[-5rem] h-72 w-72 rounded-full bg-sky-200/12 blur-3xl" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(142,219,255,0.14),transparent_42%)]" />
           </div>
           <div className="relative mx-auto max-w-6xl px-4 pb-10 pt-8 sm:px-6 sm:pb-12 sm:pt-10 lg:px-8">
             <Link
@@ -1058,120 +822,6 @@ export default function BookDetailsPage() {
               </svg>
               Back to catalog
             </Link>
-            <div className="mt-3 grid items-start gap-5 lg:grid-cols-[1.15fr_0.85fr]">
-              <div className="space-y-3 animate-fade-up">
-                <p className="text-xs font-semibold uppercase tracking-[0.34em] text-sky-300/80">
-                  Book Profile
-                </p>
-                <h1 className="text-4xl font-semibold text-balance text-white sm:text-5xl">
-                  {book?.title ?? 'Book Details'}
-                </h1>
-                <p className="max-w-2xl text-base text-white/75 sm:text-lg">
-                  Review metadata, availability, and borrowing actions for this title in one clean and
-                  focused layout.
-                </p>
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="inline-flex items-center gap-3 rounded-2xl border border-amber-300/20 bg-amber-500/10 px-4 py-3 shadow-lg shadow-amber-950/10">
-                    <div className="space-y-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-amber-200/75">
-                        Reader rating
-                      </p>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <RatingStars rating={averageRating} />
-                        <div className="space-y-0.5">
-                          <p className="text-sm font-semibold text-white">
-                            {hasRatings ? `${averageRating.toFixed(1)} out of 5` : 'No ratings yet'}
-                          </p>
-                          <p className="text-xs text-white/60">
-                            {hasRatings ? reviewCountLabel : 'Be the first to review this title.'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <a
-                    href="#reviews"
-                    className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/70 transition-colors hover:border-white/25 hover:bg-white/10 hover:text-white"
-                  >
-                    Jump to reviews
-                  </a>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em]">
-                  <span className="inline-flex max-w-[11.5rem] items-center rounded-full border border-white/20 bg-white/10 px-5 py-2 text-white/80">
-                    <span className="truncate">{heroCategoryLabel}</span>
-                  </span>
-                  <span
-                    className={`inline-flex items-center gap-2 rounded-full border px-5 py-2 ${heroStatusChipClass}`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${heroStatusDotClass}`} />
-                    <span>{heroStatusLabel}</span>
-                  </span>
-                </div>
-                <p className="text-xs font-medium text-white/60">
-                  Copies {loading ? '...' : `${availableCopies}/${totalCopies}`}
-                </p>
-              </div>
-
-              <div className="self-start animate-fade-up delay-100 rounded-[26px] border border-white/15 bg-white/5 backdrop-blur-xl p-4 shadow-2xl shadow-black/30 sm:p-5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/60">
-                  At a glance
-                </p>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/50">
-                      Available
-                    </p>
-                    <p className="mt-1 text-2xl font-semibold text-white">
-                      {loading ? '...' : availableCopies}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/50">
-                      Total
-                    </p>
-                    <p className="mt-1 text-2xl font-semibold text-white">{loading ? '...' : totalCopies}</p>
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-xs text-white/60">
-                    <span>Availability</span>
-                    <span className="font-semibold text-white">
-                      {loading ? 'Loading...' : `${availabilityPercent}%`}
-                    </span>
-                  </div>
-                  <div className="mt-2 h-2 rounded-full bg-white/10">
-                    <div
-                      className={`h-full rounded-full ${
-                        book?.available ? 'bg-sky-400' : 'bg-amber-400'
-                      }`}
-                      style={{ width: `${loading ? 42 : availabilityPercent}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/50">
-                        Rating
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-white">
-                        {hasRatings ? `${averageRating.toFixed(1)} / 5` : 'No ratings yet'}
-                      </p>
-                    </div>
-                    <p className="text-xs text-white/55">{hasRatings ? reviewCountLabel : '0 reviews'}</p>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <RatingStars rating={averageRating} className="h-3.5 w-3.5" />
-                    <a
-                      href="#reviews"
-                      className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-300 transition-colors hover:text-amber-200"
-                    >
-                      Open reviews
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </section>
 
@@ -1180,7 +830,7 @@ export default function BookDetailsPage() {
             <div className="rounded-[30px] border border-white/15 bg-white/5 backdrop-blur-xl p-4 shadow-2xl shadow-black/30 sm:p-6 lg:p-8">
             {loading && (
               <div className="flex items-center justify-center py-12">
-                <div className="h-12 w-12 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+                <div className="h-12 w-12 animate-spin rounded-full border-2 border-sky-300 border-t-transparent" />
               </div>
             )}
 
@@ -1190,7 +840,7 @@ export default function BookDetailsPage() {
                 <p className="mt-2 text-white/70">Please choose another book from the catalog.</p>
                 <Link
                   href="/books"
-                  className="mt-6 inline-flex items-center rounded-full bg-amber-500 px-5 py-2.5 font-semibold text-[#1a1b1f] transition-colors hover:bg-amber-400"
+                  className="mt-6 inline-flex items-center rounded-full bg-[#d4b170] px-5 py-2.5 font-semibold text-[#12140f] transition-colors hover:bg-[#e0c182]"
                 >
                   Browse collection
                 </Link>
@@ -1201,7 +851,7 @@ export default function BookDetailsPage() {
               <div className="grid gap-6 lg:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)] xl:gap-8">
                 <aside className="lg:pr-2">
                   <div className="space-y-4 lg:sticky lg:top-24">
-                    <div className="rounded-[26px] border border-white/15 bg-[#0f1b2f]/80 p-4 shadow-xl shadow-black/20">
+                    <div className="rounded-[26px] border border-white/15 bg-[#10263d]/82 p-4 shadow-xl shadow-black/20">
                       <div 
                         className="group relative mx-auto aspect-[3/4] max-w-[320px] overflow-visible rounded-[22px] [perspective:2000px] flex items-center justify-center"
                         style={{ transformStyle: 'preserve-3d' }}
@@ -1222,7 +872,7 @@ export default function BookDetailsPage() {
                           }}
                         >
                           {/* Front Cover */}
-                          <div className="absolute inset-0 overflow-hidden rounded-[22px] border border-white/15 bg-[#0a1221] shadow-[1px_1px_12px_rgba(0,0,0,0.5)] [backface-visibility:hidden]">
+                          <div className="absolute inset-0 overflow-hidden rounded-[22px] border border-white/15 bg-[#0c2135] shadow-[1px_1px_12px_rgba(0,0,0,0.5)] [backface-visibility:hidden]">
                             {coverUrl ? (
                               <Image
                                 src={coverUrl}
@@ -1248,7 +898,7 @@ export default function BookDetailsPage() {
                           
                           {/* Back Cover */}
                           {hasBackCover && (
-                            <div className="absolute inset-0 overflow-hidden rounded-[22px] border border-white/15 bg-[#0a1221] shadow-[1px_1px_12px_rgba(0,0,0,0.5)] [backface-visibility:hidden] [transform:rotateY(180deg)]">
+                            <div className="absolute inset-0 overflow-hidden rounded-[22px] border border-white/15 bg-[#0c2135] shadow-[1px_1px_12px_rgba(0,0,0,0.5)] [backface-visibility:hidden] [transform:rotateY(180deg)]">
                               {coverBackUrl ? (
                                 <Image
                                   src={coverBackUrl}
@@ -1275,7 +925,7 @@ export default function BookDetailsPage() {
                         </div>
                       </div>
 
-                      <div className="mt-4 rounded-2xl border border-white/15 bg-[#0a1221]/80 px-4 py-3">
+                      <div className="mt-4 rounded-2xl border border-white/15 bg-[#0c2135]/82 px-4 py-3">
                         <div className="flex items-center justify-between text-xs text-white/60">
                           <span>Available copies</span>
                           <span className="font-semibold text-white">
@@ -1285,7 +935,7 @@ export default function BookDetailsPage() {
                         <div className="mt-2 h-2 rounded-full bg-white/10">
                           <div
                             className={`h-full rounded-full ${
-                              book.available ? 'bg-sky-400' : 'bg-amber-400'
+                              book.available ? 'bg-sky-300' : 'bg-slate-300'
                             }`}
                             style={{ width: `${availabilityPercent}%` }}
                           />
@@ -1297,11 +947,28 @@ export default function BookDetailsPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-white/15 bg-[#0a1221]/80 px-4 py-3">
+                    <div className="rounded-2xl border border-white/15 bg-[#0c2135]/82 px-4 py-3">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/50">
                         Friendly note
                       </p>
                       <p className="mt-1 text-sm text-white/70">{actionHelperText}</p>
+                    </div>
+
+                    <div className="rounded-2xl border border-sky-300/24 bg-sky-400/10 px-4 py-3 shadow-lg shadow-black/10">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-sky-100/78">
+                        Reader rating
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <RatingStars rating={averageRating} />
+                        <div className="space-y-0.5">
+                          <p className="text-sm font-semibold text-white">
+                            {hasRatings ? `${averageRating.toFixed(1)} out of 5` : 'No ratings yet'}
+                          </p>
+                          <p className="text-xs text-white/60">
+                            {hasRatings ? reviewCountLabel : 'Be the first to review this title.'}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </aside>
@@ -1329,32 +996,39 @@ export default function BookDetailsPage() {
                         {book.author || 'Unknown author'}
                       </p>
                       <h2 className="mt-2 text-3xl font-semibold text-white sm:text-4xl">{book.title}</h2>
-                      <p className="mt-3 max-w-2xl text-sm text-white/75 sm:text-base">
+                      <a
+                        href="#reviews"
+                        aria-label="Open reviews"
+                        className="mt-4 inline-flex items-center text-sky-200 transition-colors hover:text-sky-100"
+                      >
+                        <RatingStars rating={averageRating} className="h-4 w-4" />
+                      </a>
+                      <p className="mt-4 max-w-2xl text-sm text-white/75 sm:text-base">
                         {availabilityMessage}
                       </p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-white/15 bg-[#0a1221]/80 px-4 py-3.5">
+                    <div className="rounded-2xl border border-white/15 bg-[#0c2135]/82 px-4 py-3.5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/50">
                         Published
                       </p>
                       <p className="mt-1 text-base font-semibold text-white">{publishedLabel}</p>
                     </div>
-                    <div className="rounded-2xl border border-white/15 bg-[#0a1221]/80 px-4 py-3.5">
+                    <div className="rounded-2xl border border-white/15 bg-[#0c2135]/82 px-4 py-3.5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/50">
                         ISBN
                       </p>
                       <p className="mt-1 break-all text-base font-semibold text-white">{isbnLabel}</p>
                     </div>
-                    <div className="rounded-2xl border border-white/15 bg-[#0a1221]/80 px-4 py-3.5">
+                    <div className="rounded-2xl border border-white/15 bg-[#0c2135]/82 px-4 py-3.5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/50">
                         Language
                       </p>
                       <p className="mt-1 text-base font-semibold text-white">{languageLabel}</p>
                     </div>
-                    <div className="rounded-2xl border border-white/15 bg-[#0a1221]/80 px-4 py-3.5">
+                    <div className="rounded-2xl border border-white/15 bg-[#0c2135]/82 px-4 py-3.5">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/50">
                         Grade level
                       </p>
@@ -1362,7 +1036,7 @@ export default function BookDetailsPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[22px] border border-white/15 bg-[#0f1b2f]/80 p-4 sm:p-5">
+                  <div className="rounded-[22px] border border-white/15 bg-[#10263d]/82 p-4 sm:p-5">
                     <h3 className="text-xl font-semibold text-white">Collection details</h3>
                     <p className="mt-2 text-sm text-white/70">
                       Explore category placement and current shelf status before sending a request.
@@ -1384,7 +1058,7 @@ export default function BookDetailsPage() {
                         </div>
                       </div>
 
-                      <div className="rounded-2xl border border-white/15 bg-[#0a1221]/80 px-4 py-3">
+                      <div className="rounded-2xl border border-white/15 bg-[#0c2135]/82 px-4 py-3">
                         <div className="flex items-center justify-between text-sm text-white/60">
                           <span>Availability progress</span>
                           <span className="font-semibold text-white">{availabilityPercent}%</span>
@@ -1392,7 +1066,7 @@ export default function BookDetailsPage() {
                         <div className="mt-2 h-2 rounded-full bg-white/10">
                           <div
                             className={`h-full rounded-full ${
-                              book.available ? 'bg-sky-400' : 'bg-amber-400'
+                              book.available ? 'bg-sky-300' : 'bg-slate-300'
                             }`}
                             style={{ width: `${availabilityPercent}%` }}
                           />
@@ -1401,7 +1075,7 @@ export default function BookDetailsPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[22px] border border-white/15 bg-[#0a1221]/80 px-4 py-5 shadow-xl shadow-black/20 sm:px-5">
+                  <div className="rounded-[22px] border border-white/15 bg-[#0c2135]/82 px-4 py-5 shadow-xl shadow-black/20 sm:px-5">
                     <h3 className="text-lg font-semibold text-white">Borrowing actions</h3>
                     <p className="mt-1 text-sm text-white/70">{actionHelperText}</p>
                     <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -1411,7 +1085,7 @@ export default function BookDetailsPage() {
                           className={`flex-1 rounded-full px-6 py-3 font-semibold transition-all duration-400 ${
                             isReturnDisabled
                               ? 'cursor-not-allowed bg-white/10 text-white/40'
-                              : 'bg-sky-500 text-white hover:bg-sky-600 shadow-[0_14px_56px_-11px_rgba(14,165,233,0.6)]'
+                              : 'bg-[#d4b170] text-[#12140f] hover:bg-[#e0c182] shadow-[0_14px_56px_-11px_rgba(212,177,112,0.45)]'
                           }`}
                           disabled={isReturnDisabled}
                           onClick={handleReturnRequest}
@@ -1427,7 +1101,7 @@ export default function BookDetailsPage() {
                           className={`flex-1 rounded-full px-6 py-3 font-semibold transition-all duration-400 ${
                             isBorrowDisabled
                               ? 'cursor-not-allowed bg-white/10 text-white/40'
-                              : 'bg-amber-500 text-[#1a1b1f] hover:bg-amber-400 shadow-[0_14px_56px_-11px_rgba(245,158,11,0.6)]'
+                              : 'bg-[#d4b170] text-[#12140f] hover:bg-[#e0c182] shadow-[0_14px_56px_-11px_rgba(212,177,112,0.45)]'
                           }`}
                           disabled={isBorrowDisabled}
                           onClick={handleBorrowRequest}
@@ -1444,7 +1118,7 @@ export default function BookDetailsPage() {
                           className={`flex-1 rounded-full px-6 py-3 font-semibold transition-all duration-400 ${
                             isReserveDisabled
                               ? 'cursor-not-allowed bg-white/10 text-white/40'
-                              : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-[0_14px_56px_-11px_rgba(16,185,129,0.6)]'
+                              : 'bg-[#6c8565] text-white hover:bg-[#7b9674] shadow-[0_14px_56px_-11px_rgba(108,133,101,0.45)]'
                           }`}
                           disabled={isReserveDisabled}
                           onClick={handleReserveRequest}
@@ -1469,7 +1143,7 @@ export default function BookDetailsPage() {
                         </div>
                       )}
                       {borrowMessage && (
-                        <div className="rounded-2xl border border-sky-300/30 bg-sky-500/15 px-4 py-3 text-sm text-sky-100">
+                        <div className="rounded-2xl border border-sky-300/30 bg-sky-400/15 px-4 py-3 text-sm text-sky-100">
                           <p>{borrowMessage}</p>
                           {isStudentBorrower && borrowSlipData && (
                             <button
@@ -1488,7 +1162,7 @@ export default function BookDetailsPage() {
                         </div>
                       )}
                       {returnMessage && (
-                        <div className="rounded-2xl border border-sky-300/30 bg-sky-500/15 px-4 py-3 text-sm text-sky-100">
+                        <div className="rounded-2xl border border-sky-300/30 bg-sky-400/15 px-4 py-3 text-sm text-sky-100">
                           {returnMessage}
                         </div>
                       )}
@@ -1498,7 +1172,7 @@ export default function BookDetailsPage() {
                         </div>
                       )}
                       {reservationMessage && (
-                        <div className="rounded-2xl border border-emerald-300/30 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-100">
+                        <div className="rounded-2xl border border-sky-300/30 bg-sky-400/15 px-4 py-3 text-sm text-sky-100">
                           {reservationMessage}
                         </div>
                       )}
@@ -1512,7 +1186,7 @@ export default function BookDetailsPage() {
         </section>
 
         <section className="pb-12">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-[1520px] px-4 sm:px-6 lg:px-8">
             <div className="rounded-[30px] border border-white/15 bg-white/5 p-6 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-8">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -1534,7 +1208,7 @@ export default function BookDetailsPage() {
 
               {recommendationsLoading ? (
                 <div className="mt-8 flex justify-center">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-sky-300 border-t-transparent" />
                 </div>
               ) : recommendationsError ? (
                 <div className="mt-6 rounded-2xl border border-rose-300/25 bg-rose-500/12 px-4 py-3 text-sm text-rose-100">
@@ -1545,64 +1219,10 @@ export default function BookDetailsPage() {
                   <p className="text-white/72">No similar titles are ready yet for this book.</p>
                 </div>
               ) : (
-                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {recommendations.map((item) => {
-                    const recommendation = item.book;
-                    const recommendationCategories =
-                      recommendation.categories?.map((category) => category.name).filter(Boolean) ?? [];
-                    const recommendationLabel =
-                      recommendationCategories[0] || recommendation.genre || 'General collection';
-                    const recommendationRating = recommendation.average_rating ?? 0;
-                    const recommendationReviews = recommendation.review_count ?? 0;
-
-                    return (
-                      <Link
-                        key={recommendation.id}
-                        href={`/books/${recommendation.id}`}
-                        className="group rounded-[1.6rem] border border-white/12 bg-white/[0.04] p-5 transition-all duration-300 hover:border-white/22 hover:bg-white/[0.08]"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <span className="inline-flex rounded-full border border-white/14 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/65">
-                            {recommendationLabel}
-                          </span>
-                          <span
-                            className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${
-                              recommendation.available
-                                ? 'bg-emerald-500/15 text-emerald-100'
-                                : 'bg-amber-500/15 text-amber-100'
-                            }`}
-                          >
-                            {recommendation.available ? 'Available' : 'In demand'}
-                          </span>
-                        </div>
-
-                        <h4 className="mt-4 text-lg font-semibold text-white transition-colors group-hover:text-sky-100">
-                          {recommendation.title}
-                        </h4>
-                        <p className="mt-1 text-sm text-white/60">{recommendation.author}</p>
-                        <p className="mt-4 text-sm leading-6 text-white/72">{item.reason}</p>
-
-                        <div className="mt-5 flex items-center justify-between gap-4 border-t border-white/10 pt-4">
-                          <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/42">
-                              Reader rating
-                            </p>
-                            <div className="mt-2 flex items-center gap-2">
-                              <RatingStars rating={recommendationRating} className="h-3.5 w-3.5" />
-                              <span className="text-xs text-white/62">
-                                {recommendationReviews > 0
-                                  ? `${recommendationRating.toFixed(1)} from ${recommendationReviews} review${recommendationReviews === 1 ? '' : 's'}`
-                                  : 'No reviews yet'}
-                              </span>
-                            </div>
-                          </div>
-                          <span className="text-sm font-semibold text-sky-300 transition-colors group-hover:text-sky-200">
-                            Open
-                          </span>
-                        </div>
-                      </Link>
-                    );
-                  })}
+                <div className="mt-6 grid grid-cols-1 justify-items-center gap-x-5 gap-y-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                  {recommendations.map((item) => (
+                    <BookCard key={item.book.id} book={item.book} />
+                  ))}
                 </div>
               )}
             </div>
@@ -1641,7 +1261,7 @@ export default function BookDetailsPage() {
                       setReviewsExpanded(true);
                       setShowReviewForm(true);
                     }}
-                    className="rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-[#1a1b1f] transition-colors hover:bg-amber-400"
+                    className="rounded-full bg-[#d4b170] px-4 py-2 text-sm font-semibold text-[#12140f] transition-colors hover:bg-[#e0c182]"
                   >
                     Write a Review
                   </button>
@@ -1677,7 +1297,7 @@ export default function BookDetailsPage() {
                           className="text-2xl transition-transform hover:scale-110"
                         >
                           {star <= reviewForm.rating ? (
-                            <span className="text-amber-400">★</span>
+                            <span className="text-sky-200">★</span>
                           ) : (
                             <span className="text-white/30">☆</span>
                           )}
@@ -1696,7 +1316,7 @@ export default function BookDetailsPage() {
                       onChange={(e) => setReviewForm({ ...reviewForm, reviewText: e.target.value })}
                       placeholder="Share your thoughts about this book..."
                       rows={4}
-                      className="mt-2 w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/40 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/30"
+                      className="mt-2 w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/40 focus:border-sky-300 focus:ring-2 focus:ring-sky-300/30"
                     />
                   </div>
 
@@ -1721,7 +1341,7 @@ export default function BookDetailsPage() {
                       className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
                         reviewSubmitting || reviewForm.rating === 0
                           ? 'cursor-not-allowed bg-white/10 text-white/40'
-                          : 'bg-amber-500 text-[#1a1b1f] hover:bg-amber-400'
+                          : 'bg-[#d4b170] text-[#12140f] hover:bg-[#e0c182]'
                       }`}
                     >
                       {reviewSubmitting ? 'Submitting...' : editingReview ? 'Update Review' : 'Submit Review'}
@@ -1732,10 +1352,10 @@ export default function BookDetailsPage() {
 
               {/* User's Existing Review */}
               {userReview && !showReviewForm && (
-                <div className="mt-6 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-5">
+                <div className="mt-6 rounded-2xl border border-sky-300/24 bg-sky-400/10 p-5">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300/80">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-100/82">
                         Your Review
                       </p>
                       <div className="mt-1 text-lg">
@@ -1769,7 +1389,7 @@ export default function BookDetailsPage() {
               {/* Reviews List */}
               {reviewsLoading ? (
                 <div className="mt-8 flex justify-center">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-sky-300 border-t-transparent" />
                 </div>
               ) : reviews.length === 0 ? (
                 <div className="mt-8 text-center text-white/50">
@@ -1809,7 +1429,7 @@ export default function BookDetailsPage() {
 
         {showBorrowModal && isTeacher && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-white/15 bg-[#0f1b2f] shadow-2xl">
+            <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-white/15 bg-[#10263d] shadow-2xl">
               <div className="border-b border-white/10 px-6 py-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/60">
                   Teacher Borrow Request
@@ -1895,13 +1515,13 @@ export default function BookDetailsPage() {
 
         {showBorrowModal && !isTeacher && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-3xl overflow-hidden rounded-3xl border border-white/15 bg-[#0f1b2f] shadow-2xl">
+            <div className="w-full max-w-3xl overflow-hidden rounded-3xl border border-white/15 bg-[#10263d] shadow-2xl">
               <div className="border-b border-white/10 px-6 py-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/60">
                   Student Borrowing Form
                 </p>
                 <h3 className="mt-2 text-2xl font-semibold text-white">
-                  Salazar Library System Borrowing Form
+                  SCSIT Library System Borrowing Form
                 </h3>
                 <p className="mt-2 text-sm text-white/70">
                   Complete the student borrowing details below. This helps keep accurate circulation records.
@@ -1917,91 +1537,37 @@ export default function BookDetailsPage() {
                       <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
                         Full Name
                       </label>
-                      <input
-                        value={studentBorrowForm.full_name}
-                        onChange={(event) =>
-                          handleStudentBorrowFormChange('full_name', event.target.value)
-                        }
-                        className="mt-2 w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/40 focus:border-sky-300 focus:ring-2 focus:ring-sky-300/30 transition-all"
-                        placeholder="Enter full name"
-                      />
+                      <StaticBorrowField value={studentBorrowForm.full_name} />
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
                         Borrower Type
                       </label>
-                      <input
-                        value="Student"
-                        readOnly
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white/70"
-                      />
+                      <StaticBorrowField value="Student" />
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
                         Student ID Number
                       </label>
-                      <input
-                        value={studentBorrowForm.student_id}
-                        onChange={(event) =>
-                          handleStudentBorrowFormChange('student_id', event.target.value)
-                        }
-                        className="mt-2 w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/40 focus:border-sky-300 focus:ring-2 focus:ring-sky-300/30 transition-all"
-                        placeholder="Enter student ID"
-                      />
+                      <StaticBorrowField value={studentBorrowForm.student_id} />
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
                         Course or Program
                       </label>
-                      <BorrowFormSelect
-                        value={studentBorrowForm.course_program}
-                        onChange={(nextValue) =>
-                          handleStudentBorrowFormChange('course_program', nextValue)
-                        }
-                        options={courseProgramOptions}
-                        placeholder="Select course/program"
-                        menuLabel="Academic Programs"
-                      />
+                      <StaticBorrowField value={studentBorrowForm.course_program} />
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
                         Year/Level
                       </label>
-                      <BorrowFormSelect
-                        value={studentBorrowForm.year_level}
-                        onChange={(nextValue) =>
-                          handleStudentBorrowFormChange('year_level', nextValue)
-                        }
-                        options={yearLevelOptions}
-                        placeholder="Select year level"
-                        menuLabel="Year Level"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
-                        Contact Number
-                      </label>
-                      <input
-                        value={studentBorrowForm.contact_number}
-                        onChange={(event) =>
-                          handleStudentBorrowFormChange('contact_number', event.target.value)
-                        }
-                        className="mt-2 w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/40 focus:border-sky-300 focus:ring-2 focus:ring-sky-300/30 transition-all"
-                        placeholder="e.g., 09xx-xxx-xxxx"
-                      />
+                      <StaticBorrowField value={studentBorrowForm.year_level} />
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
                         Email Address
                       </label>
-                      <input
-                        value={studentBorrowForm.email}
-                        onChange={(event) =>
-                          handleStudentBorrowFormChange('email', event.target.value)
-                        }
-                        className="mt-2 w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/40 focus:border-sky-300 focus:ring-2 focus:ring-sky-300/30 transition-all"
-                        placeholder="name@example.com"
-                      />
+                      <StaticBorrowField value={studentBorrowForm.email} />
                     </div>
                   </div>
                 </section>
@@ -2050,21 +1616,8 @@ export default function BookDetailsPage() {
                         onChange={(event) =>
                           handleStudentBorrowFormChange('call_number', event.target.value)
                         }
-                        className="mt-2 w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/40 focus:border-sky-300 focus:ring-2 focus:ring-sky-300/30 transition-all"
+                        className="mt-2 w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/40 transition-all focus:border-sky-300 focus:ring-2 focus:ring-sky-300/30"
                         placeholder="Enter call number"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
-                        Accession Number
-                      </label>
-                      <input
-                        value={studentBorrowForm.accession_number}
-                        onChange={(event) =>
-                          handleStudentBorrowFormChange('accession_number', event.target.value)
-                        }
-                        className="mt-2 w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/40 focus:border-sky-300 focus:ring-2 focus:ring-sky-300/30 transition-all"
-                        placeholder="Enter accession number"
                       />
                     </div>
                     <div>
@@ -2099,192 +1652,68 @@ export default function BookDetailsPage() {
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
-                        Return Date
+                        Borrow Duration
                       </label>
-                      <input
-                        type="date"
-                        value={dueDateInput}
-                        readOnly
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white/70"
-                      />
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        {[7, 14].map((duration) => {
+                          const isSelected = studentBorrowDurationDays === duration;
+                          return (
+                            <button
+                              key={duration}
+                              type="button"
+                              onClick={() => {
+                                setStudentBorrowDurationDays(duration as 7 | 14);
+                                setStudentBorrowFormError(null);
+                              }}
+                              className={`rounded-xl border px-3 py-2 text-sm font-semibold transition-all ${
+                                isSelected
+                                  ? 'border-[#d4b170] bg-[#d4b170]/15 text-[#fff1cf] shadow-[0_0_0_1px_rgba(212,177,112,0.2)]'
+                                  : 'border-white/20 bg-white/5 text-white/70 hover:border-[#d4b170]/40 hover:bg-[#d4b170]/10'
+                              }`}
+                            >
+                              {duration} days
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </section>
 
                 <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
                   <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
-                    Borrowing Agreement
+                    Agreement and Policies
                   </h4>
-                  <p className="mt-3 text-sm text-white/70">
-                    I acknowledge receipt of the book(s) listed above and agree to comply with library
-                    policies. I will return all borrowed materials on or before the due date and accept
-                    responsibility for any loss, damage, or overdue penalties as required by library
-                    regulations.
-                  </p>
-                  <label className="mt-4 flex items-start gap-3 text-sm text-white/80">
+                  <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                     <input
                       type="checkbox"
-                      checked={studentBorrowForm.agreementAccepted}
+                      checked={studentBorrowForm.agreed_to_policies}
                       onChange={(event) =>
-                        handleStudentBorrowFormChange('agreementAccepted', event.target.checked)
+                        handleStudentBorrowFormChange(
+                          'agreed_to_policies',
+                          event.target.checked
+                        )
                       }
-                      className="mt-1 h-4 w-4 rounded border-white/40 bg-white/10 text-sky-400 focus:ring-sky-300/40"
+                      className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent text-sky-300 focus:ring-sky-300/30"
                     />
-                    I agree to the borrowing policies above.
+                    <div>
+                      <p className="text-sm font-semibold text-white">
+                        I agree to the borrowing policies.
+                      </p>
+                      <p className="mt-1 text-sm text-white/60">
+                        I understand that student borrow requests are limited to
+                        {' '}7 or 14 days, overdue items may incur penalties, and
+                        the book must be returned on or before the due date shown above.
+                      </p>
+                    </div>
                   </label>
+                  {studentBorrowFormError && (
+                    <div className="mt-4 rounded-2xl border border-rose-300/25 bg-rose-500/12 px-4 py-3 text-sm text-rose-100">
+                      {studentBorrowFormError}
+                    </div>
+                  )}
                 </section>
 
-                <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
-                    Borrower Confirmation
-                  </h4>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
-                        Borrower Signature
-                      </label>
-                      <input
-                        value={studentBorrowForm.borrower_signature}
-                        onChange={(event) =>
-                          handleStudentBorrowFormChange('borrower_signature', event.target.value)
-                        }
-                        className="mt-2 w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/40 focus:border-sky-300 focus:ring-2 focus:ring-sky-300/30 transition-all"
-                        placeholder="Type full name as signature"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
-                        Date Signed
-                      </label>
-                      <input
-                        value={borrowedDateInput}
-                        readOnly
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white/70"
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
-                    Library Staff Verification
-                  </h4>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
-                        Librarian Name
-                      </label>
-                      <input
-                        value=""
-                        readOnly
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white/40"
-                        placeholder="For staff use"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
-                        Librarian Signature
-                      </label>
-                      <input
-                        value=""
-                        readOnly
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white/40"
-                        placeholder="For staff use"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
-                        Date Approved
-                      </label>
-                      <input
-                        value=""
-                        readOnly
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white/40"
-                        placeholder="For staff use"
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
-                    Book Condition and Remarks
-                  </h4>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
-                        Condition Before Borrowing
-                      </label>
-                      <select
-                        value={studentBorrowForm.condition}
-                        onChange={(event) =>
-                          handleStudentBorrowFormChange('condition', event.target.value)
-                        }
-                        className="mt-2 w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white focus:border-sky-300 focus:ring-2 focus:ring-sky-300/30 transition-all"
-                      >
-                        <option value="GOOD">Good</option>
-                        <option value="SLIGHTLY_DAMAGED">Slightly Damaged</option>
-                        <option value="NEEDS_REPAIR">Needs Repair</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
-                        Remarks or Notes
-                      </label>
-                      <textarea
-                        value={studentBorrowForm.remarks}
-                        onChange={(event) =>
-                          handleStudentBorrowFormChange('remarks', event.target.value)
-                        }
-                        rows={3}
-                        className="mt-2 w-full rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/40 focus:border-sky-300 focus:ring-2 focus:ring-sky-300/30 transition-all"
-                        placeholder="Add remarks or special notes"
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
-                    Borrow Duration
-                  </h4>
-                  <p className="mt-2 text-sm text-white/70">
-                    Select how many days you need this book. You&apos;ll receive a reminder before the due date.
-                  </p>
-                  <div className="mt-4 space-y-3">
-                    {borrowDayOptions.map((days) => (
-                      <button
-                        key={days}
-                        onClick={() => setBorrowDays(days)}
-                        className={`w-full rounded-2xl border-2 p-4 text-left transition-all ${
-                          borrowDays === days
-                            ? 'border-sky-400 bg-sky-500/20'
-                            : 'border-white/15 bg-white/5 hover:border-sky-400/50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold text-white">
-                              {days} {days === 1 ? 'Day' : 'Days'}
-                            </p>
-                            <p className="text-xs text-white/60">
-                              Estimated due date: {getEstimatedDueDateLabel(days)}
-                            </p>
-                          </div>
-                          {borrowDays === days && (
-                            <svg className="h-6 w-6 text-sky-400" fill="currentColor" viewBox="0 0 20 20">
-                              <path
-                                fillRule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </section>
               </div>
               <div className="flex flex-col gap-3 border-t border-white/10 px-6 py-4 sm:flex-row">
                 <button
@@ -2295,20 +1724,14 @@ export default function BookDetailsPage() {
                 </button>
                 <button
                   onClick={confirmBorrowRequest}
-                  disabled={
-                    borrowSubmitting ||
-                    !studentBorrowForm.agreementAccepted ||
-                    !studentBorrowForm.borrower_signature.trim()
-                  }
+                  disabled={borrowSubmitting || !studentBorrowForm.agreed_to_policies}
                   className={`flex-1 rounded-full px-6 py-3 font-semibold transition-colors ${
-                    borrowSubmitting ||
-                    !studentBorrowForm.agreementAccepted ||
-                    !studentBorrowForm.borrower_signature.trim()
+                    borrowSubmitting || !studentBorrowForm.agreed_to_policies
                       ? 'cursor-not-allowed bg-white/10 text-white/40'
-                      : 'bg-sky-500 text-white hover:bg-sky-600'
+                      : 'bg-[#d4b170] text-[#12140f] hover:bg-[#e0c182]'
                   }`}
                 >
-                  Confirm Request
+                  Agree to Policies and Confirm Request
                 </button>
               </div>
             </div>

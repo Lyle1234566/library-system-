@@ -2,15 +2,18 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import ContactInboxPanel from '@/components/librarian/ContactInboxPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { authApi, tokenStorage, User as AuthUser } from '@/lib/auth';
 import { emitUnreadCountUpdated } from '@/lib/notificationEvents';
-import { hasStaffDeskAccess, isWorkingStudent } from '@/lib/roles';
+import { emitPendingCountsUpdated } from '@/lib/pendingCounts';
+import { getNotificationActionLabel, getNotificationHref } from '@/lib/notificationRouting';
+import { getUserRoleLabel, hasStaffDeskAccess, isWorkingStudent } from '@/lib/roles';
 import {
   API_BASE_URL,
-  API_ORIGIN,
   booksApi,
   Book as ApiBook,
   BorrowRequest,
@@ -19,6 +22,7 @@ import {
   FinePayment,
   Category,
   getRenewalRequests,
+  notificationsApi,
   getReturnRequests,
   approveBorrowRequest,
   approveRenewalRequest,
@@ -74,6 +78,7 @@ type DashboardNavItem = {
   label: string;
   icon: typeof Library;
   badge?: string;
+  href?: string;
 };
 type DashboardNavGroup = {
   label: string;
@@ -92,6 +97,7 @@ type NotificationRecord = {
 type NotificationListResponse = {
   results?: NotificationRecord[];
   unread_count?: number;
+  total_count?: number;
   detail?: string;
   message?: string;
 };
@@ -135,6 +141,35 @@ const formatDate = (dateString?: string | null) => {
     month: 'short',
     day: 'numeric',
   });
+};
+
+const formatRelativeTime = (value?: string | null) => {
+  if (!value) return 'Unknown time';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const diffMs = date.getTime() - Date.now();
+  const absSeconds = Math.round(Math.abs(diffMs) / 1000);
+  if (absSeconds < 60) {
+    return 'Just now';
+  }
+
+  const formatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+  const units = [
+    ['day', 60 * 60 * 24],
+    ['hour', 60 * 60],
+    ['minute', 60],
+  ] as const;
+
+  for (const [unit, seconds] of units) {
+    if (absSeconds >= seconds) {
+      return formatter.format(Math.round(diffMs / 1000 / seconds), unit);
+    }
+  }
+
+  return 'Just now';
 };
 
 const toTimestamp = (dateString?: string | null) => {
@@ -245,6 +280,8 @@ async function parseResponseData<T>(response: Response): Promise<T | null> {
 }
 
 export default function LibrarianDeskPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, logout } = useAuth();
   const [pendingStudents, setPendingStudents] = useState<AuthUser[]>([]);
   const [workingStudentApprovals, setWorkingStudentApprovals] = useState<Record<number, boolean>>({});
@@ -293,6 +330,7 @@ export default function LibrarianDeskPage() {
   const [activeSectionId, setActiveSectionId] = useState('desk-dashboard');
   const [isDeskMenuOpen, setIsDeskMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
   const [isAddBookOpen, setIsAddBookOpen] = useState(false);
   const [isPendingAccountsOpen, setIsPendingAccountsOpen] = useState(true);
   const [isPerformanceOverviewOpen, setIsPerformanceOverviewOpen] = useState(true);
@@ -319,6 +357,9 @@ export default function LibrarianDeskPage() {
   const [categorySuccess, setCategorySuccess] = useState<string | null>(null);
   const [finePaymentDrafts, setFinePaymentDrafts] = useState<Record<number, FinePaymentDraft>>({});
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
+  const [notificationTotalCount, setNotificationTotalCount] = useState(0);
+  const [notificationNavigationId, setNotificationNavigationId] = useState<number | null>(null);
+  const [notificationDeleteId, setNotificationDeleteId] = useState<number | null>(null);
   const [bookEditForm, setBookEditForm] = useState({
     title: '',
     author: '',
@@ -328,6 +369,7 @@ export default function LibrarianDeskPage() {
   });
 
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
+  const notificationMenuRef = useRef<HTMLDivElement | null>(null);
   const deskNotificationsPanelRef = useRef<HTMLElement | null>(null);
   const notificationsRequestVersionRef = useRef(0);
 
@@ -338,6 +380,14 @@ export default function LibrarianDeskPage() {
   const canManageEnrollmentRecords = useMemo(
     () => user?.role === 'LIBRARIAN' || user?.role === 'ADMIN',
     [user?.role]
+  );
+  const unreadContactNotificationCount = useMemo(
+    () =>
+      notifications.filter(
+        (notification) =>
+          notification.notification_type === 'CONTACT_MESSAGE_RECEIVED' && !notification.is_read
+      ).length,
+    [notifications]
   );
   const canApproveStudents = useMemo(
     () => user?.role === 'ADMIN' || user?.role === 'LIBRARIAN' || isWorkingStudent(user),
@@ -383,6 +433,20 @@ export default function LibrarianDeskPage() {
         ],
       },
     ];
+
+    if (canManageEnrollmentRecords) {
+      groups.push({
+        label: 'Communication',
+        items: [
+          {
+            id: 'desk-contact',
+            label: 'Contact Messages',
+            icon: MessageSquare,
+            badge: String(unreadContactNotificationCount),
+          },
+        ],
+      });
+    }
 
     if (canManageBooks) {
       groups.push({
@@ -482,10 +546,12 @@ export default function LibrarianDeskPage() {
     canApproveStudents,
     canManageBooks,
     canManageFinePayments,
+    canManageEnrollmentRecords,
     catalogBooks,
     categories.length,
     finePayments.length,
     notificationUnreadCount,
+    unreadContactNotificationCount,
     pendingStudents.length,
     renewalRequests.length,
     returnRequests.length,
@@ -502,6 +568,17 @@ export default function LibrarianDeskPage() {
     }
     return dashboardNavItems[0]?.id ?? '';
   }, [activeSectionId, dashboardNavItems]);
+
+  useEffect(() => {
+    const requestedSection = searchParams?.get('section');
+    if (!requestedSection) {
+      return;
+    }
+    if (!dashboardNavItems.some((item) => item.id === requestedSection)) {
+      return;
+    }
+    setActiveSectionId(requestedSection);
+  }, [dashboardNavItems, searchParams]);
 
   const combinedBorrowActivity = useMemo(
     () => [...analyticsBorrowRequests, ...borrowRequests],
@@ -709,16 +786,6 @@ export default function LibrarianDeskPage() {
     [catalogBooks]
   );
 
-  const adminLinks = useMemo(
-    () => ({
-      dashboard: `${API_ORIGIN}/admin/`,
-      contactMessages: `${API_ORIGIN}/admin/user/contactmessage/`,
-      notifications: `${API_ORIGIN}/admin/user/notification/`,
-      books: `${API_ORIGIN}/admin/books/`,
-    }),
-    []
-  );
-
   const recentNotifications = useMemo(
     () => notifications.slice(0, 5),
     [notifications]
@@ -728,6 +795,23 @@ export default function LibrarianDeskPage() {
     () => borrowRequests.length + renewalRequests.length + returnRequests.length,
     [borrowRequests.length, renewalRequests.length, returnRequests.length]
   );
+
+  useEffect(() => {
+    emitPendingCountsUpdated({
+      pendingAccounts: canApproveStudents ? pendingStudents.length : 0,
+      borrowRequests: borrowRequests.length,
+      returnRequests: returnRequests.length,
+      renewalRequests: renewalRequests.length,
+      overdueBooks: overdueRequests.length,
+    });
+  }, [
+    canApproveStudents,
+    pendingStudents.length,
+    borrowRequests.length,
+    returnRequests.length,
+    renewalRequests.length,
+    overdueRequests.length,
+  ]);
 
   const recentDeskTransactions = useMemo(
     () =>
@@ -1195,6 +1279,7 @@ export default function LibrarianDeskPage() {
       notificationsRequestVersionRef.current += 1;
       setNotifications([]);
       setNotificationUnreadCount(0);
+      setNotificationTotalCount(0);
       emitUnreadCountUpdated(0);
       setNotificationsError('Not authenticated.');
       setNotificationsState('error');
@@ -1225,6 +1310,7 @@ export default function LibrarianDeskPage() {
           if (notificationsRequestVersionRef.current !== requestVersion) return;
           setNotifications([]);
           setNotificationUnreadCount(0);
+          setNotificationTotalCount(0);
           emitUnreadCountUpdated(0);
           setNotificationsError(refreshResult.error);
           setNotificationsState('error');
@@ -1238,6 +1324,7 @@ export default function LibrarianDeskPage() {
         if (notificationsRequestVersionRef.current !== requestVersion) return;
         setNotifications([]);
         setNotificationUnreadCount(0);
+        setNotificationTotalCount(0);
         emitUnreadCountUpdated(0);
         setNotificationsError(data?.detail ?? 'Unable to load notifications.');
         setNotificationsState('error');
@@ -1247,6 +1334,7 @@ export default function LibrarianDeskPage() {
       if (notificationsRequestVersionRef.current !== requestVersion) return;
       setNotifications(data?.results ?? []);
       setNotificationUnreadCount(data?.unread_count ?? 0);
+      setNotificationTotalCount(data?.total_count ?? data?.results?.length ?? 0);
       emitUnreadCountUpdated(data?.unread_count ?? 0);
       setNotificationsError(null);
       setNotificationsState('idle');
@@ -1254,6 +1342,7 @@ export default function LibrarianDeskPage() {
       if (notificationsRequestVersionRef.current !== requestVersion) return;
       setNotifications([]);
       setNotificationUnreadCount(0);
+      setNotificationTotalCount(0);
       emitUnreadCountUpdated(0);
       setNotificationsError(
         error instanceof Error ? error.message : 'Unable to load notifications.'
@@ -1263,36 +1352,28 @@ export default function LibrarianDeskPage() {
   }, [user]);
 
   const handleMarkAllNotificationsRead = useCallback(async () => {
-    const accessToken = tokenStorage.getAccessToken();
-    if (!accessToken || notificationActionBusy) return;
+    if (notificationActionBusy) return;
 
     notificationsRequestVersionRef.current += 1;
     setNotificationActionBusy(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/notifications/mark-all-read/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      });
-
-      const data = await parseResponseData<NotificationListResponse>(response);
-      if (!response.ok) {
-        setNotificationsError(data?.detail ?? 'Unable to mark notifications as read.');
-        setNotificationActionBusy(false);
+      const response = await notificationsApi.markAllAsRead();
+      if (response.error) {
+        setNotificationsError(response.error);
         return;
       }
 
+      const now = new Date().toISOString();
       setNotifications((prev) =>
         prev.map((notification) => ({
           ...notification,
           is_read: true,
+          read_at: notification.read_at ?? now,
         }))
       );
-      setNotificationUnreadCount(0);
-      emitUnreadCountUpdated(0);
+      const nextUnreadCount = response.data?.unread_count ?? 0;
+      setNotificationUnreadCount(nextUnreadCount);
+      emitUnreadCountUpdated(nextUnreadCount);
       setNotificationsError(null);
     } catch (error) {
       setNotificationsError(
@@ -1304,6 +1385,88 @@ export default function LibrarianDeskPage() {
       setNotificationActionBusy(false);
     }
   }, [notificationActionBusy]);
+
+  const handleMarkNotificationRead = useCallback(async (notification: NotificationRecord) => {
+    if (notification.is_read) {
+      return true;
+    }
+
+    const response = await notificationsApi.markAsRead(notification.id);
+    if (response.error) {
+      setNotificationsError(response.error);
+      return false;
+    }
+
+    const now = new Date().toISOString();
+    setNotifications((prev) =>
+      prev.map((currentNotification) =>
+        currentNotification.id === notification.id
+          ? {
+              ...currentNotification,
+              is_read: true,
+              read_at: currentNotification.read_at ?? now,
+            }
+          : currentNotification
+      )
+    );
+    const nextUnreadCount =
+      response.data?.unread_count ?? Math.max(notificationUnreadCount - 1, 0);
+    setNotificationUnreadCount(nextUnreadCount);
+    emitUnreadCountUpdated(nextUnreadCount);
+    setNotificationsError(null);
+    return true;
+  }, [notificationUnreadCount]);
+
+  const handleNotificationNavigation = useCallback(async (notification: NotificationRecord) => {
+    const href = getNotificationHref(notification);
+
+    setNotificationNavigationId(notification.id);
+    setIsNotificationMenuOpen(false);
+    setIsProfileMenuOpen(false);
+
+    try {
+      if (!notification.is_read) {
+        await handleMarkNotificationRead(notification);
+      }
+      router.push(href);
+    } finally {
+      setNotificationNavigationId(null);
+    }
+  }, [handleMarkNotificationRead, router]);
+
+  const handleDeleteNotification = useCallback(async (notification: NotificationRecord) => {
+    if (notificationDeleteId === notification.id) {
+      return;
+    }
+
+    setNotificationDeleteId(notification.id);
+    try {
+      const response = await notificationsApi.deleteNotification(notification.id);
+      if (response.error) {
+        setNotificationsError(response.error);
+        return;
+      }
+
+      setNotifications((prev) =>
+        prev.filter((currentNotification) => currentNotification.id !== notification.id)
+      );
+      const nextUnreadCount =
+        response.data?.unread_count ??
+        (notification.is_read ? notificationUnreadCount : Math.max(notificationUnreadCount - 1, 0));
+      const nextTotalCount =
+        response.data?.total_count ?? Math.max(notificationTotalCount - 1, 0);
+      setNotificationUnreadCount(nextUnreadCount);
+      setNotificationTotalCount(nextTotalCount);
+      emitUnreadCountUpdated(nextUnreadCount);
+      setNotificationsError(null);
+    } catch (error) {
+      setNotificationsError(
+        error instanceof Error ? error.message : 'Unable to delete notification.'
+      );
+    } finally {
+      setNotificationDeleteId(null);
+    }
+  }, [notificationDeleteId, notificationTotalCount, notificationUnreadCount]);
 
   useEffect(() => {
     if (!user) return;
@@ -1373,27 +1536,39 @@ export default function LibrarianDeskPage() {
   const openNotificationCenter = useCallback(() => {
     setActiveSectionId('desk-notifications');
     setIsProfileMenuOpen(false);
+    setIsNotificationMenuOpen(false);
   }, []);
 
-  const focusDashboardNotifications = useCallback(() => {
-    setActiveSectionId('desk-dashboard');
-    setIsProfileMenuOpen(false);
+  useEffect(() => {
+    if (resolvedActiveSectionId !== 'desk-notifications') {
+      return;
+    }
+    if (notificationUnreadCount === 0) {
+      return;
+    }
 
-    window.setTimeout(() => {
-      deskNotificationsPanelRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      });
-    }, resolvedActiveSectionId === 'desk-dashboard' ? 0 : 120);
-  }, [resolvedActiveSectionId]);
+    void handleMarkAllNotificationsRead();
+  }, [
+    handleMarkAllNotificationsRead,
+    notificationUnreadCount,
+    resolvedActiveSectionId,
+  ]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+
       if (
         profileMenuRef.current &&
-        !profileMenuRef.current.contains(event.target as Node)
+        !profileMenuRef.current.contains(target)
       ) {
         setIsProfileMenuOpen(false);
+      }
+      if (
+        notificationMenuRef.current &&
+        !notificationMenuRef.current.contains(target)
+      ) {
+        setIsNotificationMenuOpen(false);
       }
     };
 
@@ -1910,14 +2085,14 @@ export default function LibrarianDeskPage() {
                   <div className="relative h-10 w-10 overflow-hidden rounded-[18px] border border-white/10 bg-white/[0.06] shadow-lg shadow-black/30">
                     <Image
                       src="/logo%20lib.png"
-                      alt="Salazar Library System logo"
+                      alt="SCSIT Library System logo"
                       fill
                       sizes="40px"
                       className="object-cover"
                     />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-[13px] font-semibold text-white/92">Salazar Library System</p>
+                    <p className="truncate text-[13px] font-semibold text-white/92">SCSIT Library System</p>
                     <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-white/34">
                       Admin Desk
                     </p>
@@ -1942,13 +2117,18 @@ export default function LibrarianDeskPage() {
                   <div className="mt-2 space-y-0.5">
                     {group.items.map((item) => {
                       const Icon = item.icon;
-                      const isActive = resolvedActiveSectionId === item.id;
+                      const isActive = !item.href && resolvedActiveSectionId === item.id;
 
                       return (
                         <button
                           type="button"
                           key={item.id}
                           onClick={() => {
+                            if (item.href) {
+                              router.push(item.href);
+                              setIsDeskMenuOpen(false);
+                              return;
+                            }
                             setActiveSectionId(item.id);
                             setIsDeskMenuOpen(false);
                           }}
@@ -2035,24 +2215,132 @@ export default function LibrarianDeskPage() {
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2.5">
-                  <button
-                    type="button"
-                    onClick={focusDashboardNotifications}
-                    aria-label="Open dashboard notifications"
-                    className="relative inline-flex h-10 w-10 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.05] text-white/75 transition hover:bg-white/[0.09] hover:text-white"
-                  >
-                    <BellRing className="h-3.5 w-3.5" />
-                    {notificationUnreadCount > 0 && (
-                      <span className="absolute right-1.5 top-1.5 min-w-[16px] rounded-full bg-rose-400 px-1.5 py-0.5 text-[9px] font-semibold text-[#220610]">
-                        {notificationUnreadCount}
-                      </span>
+                  <div ref={notificationMenuRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsNotificationMenuOpen((prev) => !prev);
+                        setIsProfileMenuOpen(false);
+                      }}
+                      aria-label="Toggle notifications menu"
+                      aria-expanded={isNotificationMenuOpen}
+                      className="relative inline-flex h-10 w-10 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.05] text-white/75 transition hover:bg-white/[0.09] hover:text-white"
+                    >
+                      <BellRing className="h-3.5 w-3.5" />
+                      {notificationUnreadCount > 0 && (
+                        <span className="absolute right-1.5 top-1.5 min-w-[16px] rounded-full bg-rose-400 px-1.5 py-0.5 text-[9px] font-semibold text-[#220610]">
+                          {notificationUnreadCount}
+                        </span>
+                      )}
+                    </button>
+
+                    {isNotificationMenuOpen && (
+                      <div className="absolute right-0 top-[calc(100%+0.75rem)] z-30 w-[23rem] rounded-3xl border border-white/10 bg-[#081221]/95 p-3 shadow-2xl shadow-black/40 backdrop-blur-2xl">
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-white">Notifications</p>
+                              <p className="mt-1 text-xs text-white/55">
+                                {notificationUnreadCount} unread notification{notificationUnreadCount === 1 ? '' : 's'}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void handleMarkAllNotificationsRead()}
+                              disabled={notificationActionBusy || notificationUnreadCount === 0}
+                              className="inline-flex items-center gap-2 rounded-xl border border-sky-300/15 bg-sky-400/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-50 transition hover:bg-sky-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {notificationActionBusy ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                              )}
+                              Mark read
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 space-y-2">
+                          {notificationsState === 'loading' && (
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-5 text-sm text-white/60">
+                              Loading notifications...
+                            </div>
+                          )}
+
+                          {notificationsError && notificationsState !== 'loading' && (
+                            <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-4 text-sm text-rose-100">
+                              {notificationsError}
+                            </div>
+                          )}
+
+                          {notificationsState !== 'loading' &&
+                            !notificationsError &&
+                            recentNotifications.length === 0 && (
+                              <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.04] px-4 py-5 text-sm text-white/60">
+                                No notifications found for this account.
+                              </div>
+                            )}
+
+                          {notificationsState !== 'loading' &&
+                            !notificationsError &&
+                            recentNotifications.map((notification) => (
+                              <button
+                                type="button"
+                                key={notification.id}
+                                onClick={() => void handleNotificationNavigation(notification)}
+                                disabled={notificationNavigationId === notification.id}
+                                className="block w-full rounded-2xl border border-white/10 bg-[#0b1729]/88 px-4 py-3.5 text-left transition hover:border-sky-300/20 hover:bg-sky-400/10 disabled:cursor-not-allowed disabled:opacity-70"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <p className="truncate text-sm font-semibold text-white">
+                                        {notification.title}
+                                      </p>
+                                      {!notification.is_read && (
+                                        <span className="rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-100">
+                                          New
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="mt-1.5 text-xs leading-5 text-white/60">
+                                      {notification.message}
+                                    </p>
+                                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-white/38">
+                                      <span>{formatRelativeTime(notification.created_at)}</span>
+                                      <span className="h-1 w-1 rounded-full bg-white/20" />
+                                      <span>{getNotificationActionLabel(notification)}</span>
+                                    </div>
+                                  </div>
+                                  {notificationNavigationId === notification.id ? (
+                                    <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-sky-100" />
+                                  ) : (
+                                    <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 text-white/45" />
+                                  )}
+                                </div>
+                              </button>
+                            ))}
+                        </div>
+
+                        <div className="mt-3">
+                          <button
+                            type="button"
+                            onClick={openNotificationCenter}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-sky-300/15 bg-sky-400/10 px-3 py-2.5 text-sm font-semibold text-sky-50 transition hover:bg-sky-400/15"
+                          >
+                            Notification center
+                            <ArrowUpRight className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
                     )}
-                  </button>
+                  </div>
                   <div ref={profileMenuRef} className="relative">
                     <button
                       type="button"
                       onClick={() => {
                         setIsProfileMenuOpen((prev) => !prev);
+                        setIsNotificationMenuOpen(false);
                       }}
                       className="flex items-center gap-2.5 rounded-[20px] border border-white/10 bg-white/[0.05] px-3 py-2 text-left transition hover:bg-white/[0.09]"
                     >
@@ -2099,15 +2387,6 @@ export default function LibrarianDeskPage() {
                             Notification Center
                             <ArrowUpRight className="h-4 w-4" />
                           </button>
-                          <a
-                            href={adminLinks.dashboard}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex items-center justify-between rounded-2xl px-3 py-2.5 text-sm text-white/75 transition hover:bg-white/[0.06] hover:text-white"
-                          >
-                            Django Admin
-                            <ArrowUpRight className="h-4 w-4" />
-                          </a>
                           <button
                             type="button"
                             onClick={() => {
@@ -2549,8 +2828,9 @@ export default function LibrarianDeskPage() {
                             <button
                               type="button"
                               key={notification.id}
-                              onClick={openNotificationCenter}
-                              className="block rounded-[20px] border border-white/10 bg-[#0b1729]/88 px-4 py-4 text-left transition hover:border-sky-300/20 hover:bg-sky-400/10"
+                              onClick={() => void handleNotificationNavigation(notification)}
+                              disabled={notificationNavigationId === notification.id}
+                              className="block rounded-[20px] border border-white/10 bg-[#0b1729]/88 px-4 py-4 text-left transition hover:border-sky-300/20 hover:bg-sky-400/10 disabled:cursor-not-allowed disabled:opacity-70"
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
@@ -2567,10 +2847,20 @@ export default function LibrarianDeskPage() {
                                   <p className="mt-2 text-xs leading-5 text-white/60">
                                     {notification.message}
                                   </p>
+                                  <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-100/75">
+                                    {getNotificationActionLabel(notification)}
+                                  </p>
                                 </div>
-                                <p className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-white/35">
-                                  {formatDate(notification.created_at)}
-                                </p>
+                                <div className="flex shrink-0 items-center gap-2">
+                                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">
+                                    {formatDate(notification.created_at)}
+                                  </p>
+                                  {notificationNavigationId === notification.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-100" />
+                                  ) : (
+                                    <ArrowUpRight className="h-3.5 w-3.5 text-white/45" />
+                                  )}
+                                </div>
                               </div>
                             </button>
                           ))}
@@ -3333,7 +3623,7 @@ export default function LibrarianDeskPage() {
 
                 {resolvedActiveSectionId === 'desk-contact' && (
                   <section className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/30 backdrop-blur-2xl md:p-6">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-200/70">
                           Communication
@@ -3342,53 +3632,13 @@ export default function LibrarianDeskPage() {
                           Contact Messages
                         </h2>
                         <p className="mt-2 max-w-2xl text-sm text-white/65">
-                          Contact messages are currently managed from Django admin. Use the quick links below to open the inbox and related notification records.
+                          New contact feedback is now sent to librarian notifications and email.
+                          Review the full inbox below, update handling status, and keep internal
+                          notes in one place.
                         </p>
                       </div>
-                      <a
-                        href={adminLinks.contactMessages}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 rounded-2xl border border-sky-300/15 bg-sky-400/10 px-4 py-2.5 text-sm font-semibold text-sky-50 transition hover:bg-sky-400/15"
-                      >
-                        Open contact inbox
-                        <ArrowUpRight className="h-4 w-4" />
-                      </a>
                     </div>
-
-                    <div className="mt-6 grid gap-4 md:grid-cols-2">
-                      <a
-                        href={adminLinks.contactMessages}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-3xl border border-white/10 bg-[#0b1729]/88 p-5 transition hover:border-sky-300/20 hover:bg-sky-400/10"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <MessageSquare className="h-5 w-5 text-sky-100" />
-                          <ArrowUpRight className="h-4 w-4 text-white/55" />
-                        </div>
-                        <h3 className="mt-4 text-lg font-semibold text-white">Contact Messages</h3>
-                        <p className="mt-2 text-sm text-white/60">
-                          Open the admin inbox to review website messages, subjects, and sender details.
-                        </p>
-                      </a>
-
-                      <a
-                        href={adminLinks.notifications}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-3xl border border-white/10 bg-[#0b1729]/88 p-5 transition hover:border-sky-300/20 hover:bg-sky-400/10"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <BellRing className="h-5 w-5 text-sky-100" />
-                          <ArrowUpRight className="h-4 w-4 text-white/55" />
-                        </div>
-                        <h3 className="mt-4 text-lg font-semibold text-white">Notification Records</h3>
-                        <p className="mt-2 text-sm text-white/60">
-                          Open stored system notifications in Django admin for deeper record review.
-                        </p>
-                      </a>
-                    </div>
+                    <ContactInboxPanel />
                   </section>
                 )}
 
@@ -3436,7 +3686,7 @@ export default function LibrarianDeskPage() {
                       </div>
                     </div>
 
-                    <div className="mt-6 grid gap-4 md:grid-cols-3">
+                    <div className="mt-6 grid gap-4 md:grid-cols-2">
                       <div className="rounded-3xl border border-white/10 bg-[#0b1729]/88 p-4">
                         <p className="text-sm text-white/55">Unread</p>
                         <p className="mt-3 text-3xl font-semibold text-white">
@@ -3448,18 +3698,6 @@ export default function LibrarianDeskPage() {
                         <p className="mt-3 text-3xl font-semibold text-white">
                           {notifications.length}
                         </p>
-                      </div>
-                      <div className="rounded-3xl border border-white/10 bg-[#0b1729]/88 p-4">
-                        <p className="text-sm text-white/55">Admin Records</p>
-                        <a
-                          href={adminLinks.notifications}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-sky-100"
-                        >
-                          Open full notification admin
-                          <ArrowUpRight className="h-4 w-4" />
-                        </a>
                       </div>
                     </div>
 
@@ -3482,10 +3720,11 @@ export default function LibrarianDeskPage() {
                           </div>
                         )}
                       {notificationsState !== 'loading' &&
+                        !notificationsError &&
                         notifications.map((notification) => (
                           <article
                             key={notification.id}
-                            className="rounded-3xl border border-white/10 bg-[#0b1729]/88 p-5"
+                            className="rounded-3xl border border-white/10 bg-[#0b1729]/88 p-5 transition hover:border-sky-300/20 hover:bg-sky-400/10"
                           >
                             <div className="flex flex-wrap items-start justify-between gap-4">
                               <div className="min-w-0">
@@ -3502,10 +3741,49 @@ export default function LibrarianDeskPage() {
                                 <p className="mt-2 text-sm text-white/60">
                                   {notification.message}
                                 </p>
+                                <div className="mt-4 flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.2em] text-white/38">
+                                  <span>{formatRelativeTime(notification.created_at)}</span>
+                                  <span className="h-1 w-1 rounded-full bg-white/20" />
+                                  <span>{getNotificationActionLabel(notification)}</span>
+                                </div>
                               </div>
-                              <p className="text-xs uppercase tracking-[0.22em] text-white/40">
-                                {formatDate(notification.created_at)}
-                              </p>
+                              <div className="flex items-center gap-3">
+                                <p className="text-xs uppercase tracking-[0.22em] text-white/40">
+                                  {formatDate(notification.created_at)}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDeleteNotification(notification)}
+                                  disabled={
+                                    notificationDeleteId === notification.id ||
+                                    notificationNavigationId === notification.id
+                                  }
+                                  className="inline-flex items-center gap-2 rounded-2xl border border-rose-300/20 bg-rose-500/12 px-3 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/18 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {notificationDeleteId === notification.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
+                                  Delete
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleNotificationNavigation(notification)}
+                                  disabled={
+                                    notificationNavigationId === notification.id ||
+                                    notificationDeleteId === notification.id
+                                  }
+                                  className="inline-flex items-center gap-2 rounded-2xl border border-sky-300/15 bg-sky-400/10 px-3 py-2 text-sm font-semibold text-sky-50 transition hover:bg-sky-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {notificationNavigationId === notification.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <ArrowUpRight className="h-4 w-4" />
+                                  )}
+                                  {getNotificationActionLabel(notification)}
+                                </button>
+                              </div>
                             </div>
                           </article>
                         ))}
@@ -3602,13 +3880,22 @@ export default function LibrarianDeskPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {canManageEnrollmentRecords && (
-                          <Link
-                            href="/librarian/enrollment"
-                            className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-400/10 px-4 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-400/15"
-                          >
-                            <ArrowUpRight className="h-4 w-4" />
-                            Upload Enrollment CSV
-                          </Link>
+                          <>
+                            <Link
+                              href="/librarian/enrollment"
+                              className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-400/10 px-4 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-400/15"
+                            >
+                              <ArrowUpRight className="h-4 w-4" />
+                              Upload Enrollment CSV
+                            </Link>
+                            <Link
+                              href="/librarian/teacher-records"
+                              className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-400/10 px-4 py-2 text-xs font-semibold text-sky-100 transition hover:bg-sky-400/15"
+                            >
+                              <ArrowUpRight className="h-4 w-4" />
+                              Upload Teacher Records CSV
+                            </Link>
+                          </>
                         )}
                         <button
                           type="button"
@@ -3673,7 +3960,7 @@ export default function LibrarianDeskPage() {
                                   </div>
                                   <div className="flex items-center gap-1.5">
                                     <User className="h-4 w-4" />
-                                    Role: {student.role === 'TEACHER' ? 'Teacher' : 'Student'}
+                                    Role: {getUserRoleLabel(student)}
                                   </div>
                                   <div className="flex items-center gap-1.5">
                                     <Mail className="h-4 w-4" />
@@ -5576,59 +5863,10 @@ export default function LibrarianDeskPage() {
                       <label className="text-sm font-medium text-white/80">Categories</label>
                       <span className="text-xs text-white/45">Optional, but recommended</span>
                     </div>
-                    <div className="rounded-2xl border border-white/15 bg-white/5 p-3 sm:p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">
-                        Create category
-                      </p>
-                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                        <input
-                          value={newCategoryName}
-                          onChange={(event) => {
-                            setNewCategoryName(event.target.value);
-                            if (categoryError) {
-                              setCategoryError(null);
-                            }
-                            if (categorySuccess) {
-                              setCategorySuccess(null);
-                            }
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              event.preventDefault();
-                              void handleCreateCategory();
-                            }
-                          }}
-                          className="w-full rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-sm text-white placeholder-white/45 focus:border-sky-300 focus:ring-2 focus:ring-sky-300/30 transition-all"
-                          placeholder="e.g., Science Fiction"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleCreateCategory}
-                          disabled={categoryBusy || !newCategoryName.trim()}
-                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60 transition-all"
-                        >
-                          {categoryBusy ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Adding...
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="h-4 w-4" />
-                              Add Category
-                            </>
-                          )}
-                        </button>
-                      </div>
-                      {categoryError && (
-                        <p className="mt-2 text-xs text-rose-200">{categoryError}</p>
-                      )}
-                      {categorySuccess && (
-                        <p className="mt-2 text-xs text-emerald-200">{categorySuccess}</p>
-                      )}
-                    </div>
                     {categories.length === 0 ? (
-                      <p className="text-sm text-white/60">No categories available yet.</p>
+                      <p className="text-sm text-white/60">
+                        No categories available yet. Create them from the Categories section.
+                      </p>
                     ) : (
                       <div className="space-y-3">
                         <div className="rounded-2xl border border-white/15 bg-[#0f1b2f]/70 p-3">

@@ -13,19 +13,19 @@ export default function CallToAction() {
   return (
     <section
       className="relative overflow-hidden py-20 sm:py-28"
-      style={{ background: 'linear-gradient(180deg, #060b1a 0%, #080f22 50%, #060e24 100%)' }}
+      style={{ background: 'linear-gradient(180deg, #071825 0%, #0b2134 50%, #081c2d 100%)' }}
     >
       {/* Section transition top */}
-      <div className="absolute inset-x-0 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(212,175,55,0.25), transparent)' }} />
+      <div className="absolute inset-x-0 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(142,219,255,0.25), transparent)' }} />
 
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute -top-20 left-1/4 h-72 w-72 rounded-full animate-float" style={{ background: 'radial-gradient(circle, rgba(79,70,229,0.14) 0%, transparent 70%)', filter: 'blur(48px)' }} />
-        <div className="absolute bottom-0 right-1/4 h-80 w-80 rounded-full animate-float-slow" style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.10) 0%, transparent 70%)', filter: 'blur(48px)' }} />
+        <div className="absolute bottom-0 right-1/4 h-80 w-80 rounded-full animate-float-slow" style={{ background: 'radial-gradient(circle, rgba(142,219,255,0.10) 0%, transparent 70%)', filter: 'blur(48px)' }} />
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
-          <span className="inline-flex items-center rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] animate-fade-up" style={{ border: '1px solid rgba(212,175,55,0.25)', background: 'rgba(212,175,55,0.07)', color: '#d4af37' }}>
+          <span className="inline-flex items-center rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] animate-fade-up" style={{ border: '1px solid rgba(142,219,255,0.25)', background: 'rgba(142,219,255,0.07)', color: '#9fdfff' }}>
             Get Started
           </span>
 
@@ -81,7 +81,7 @@ export default function CallToAction() {
                 className="flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-all duration-300 hover:-translate-y-0.5"
                 style={{ border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: 'rgba(180,200,240,0.7)' }}
               >
-                <svg className="w-4 h-4" style={{ color: '#d4af37' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" style={{ color: '#9fdfff' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                 </svg>
                 {badge}

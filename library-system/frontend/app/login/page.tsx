@@ -138,13 +138,13 @@ function LoginPageContent() {
             <Link href="/" className="inline-flex items-center gap-3 text-white">
               <Image
                 src="/logo-lib-transparent.png"
-                alt="Salazar Library System logo"
+                alt="SCSIT Library System logo"
                 width={72}
                 height={72}
                 priority
                 className="h-14 w-14 object-contain drop-shadow-[0_12px_20px_rgba(2,8,23,0.45)] sm:h-16 sm:w-16"
               />
-              <span className="text-xl font-semibold tracking-tight">Salazar Library System</span>
+              <span className="text-xl font-semibold tracking-tight">SCSIT Library System</span>
             </Link>
 
             <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-[0_32px_80px_rgba(2,6,23,0.45)] backdrop-blur-xl sm:p-8 xl:p-10">

@@ -1,11 +1,13 @@
-﻿'use client';
+'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { contactApi } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { getUserRoleLabel } from '@/lib/roles';
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -51,7 +53,7 @@ const contactHighlights = [
   },
   {
     label: 'Visit',
-    value: 'Salazar Library System',
+    value: 'SCSIT Library System',
     helper: 'Main campus, Learning Commons 2F',
     icon: (
       <svg className="h-5 w-5 text-emerald-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -83,6 +85,7 @@ const contactHighlights = [
 ];
 
 export default function ContactPage() {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -92,6 +95,20 @@ export default function ContactPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const accountIdentifier = user?.staff_id || user?.student_id || '';
+  const roleLabel = getUserRoleLabel(user);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    setFormData((current) => ({
+      ...current,
+      name: current.name || user.full_name || '',
+      email: current.email || user.email || '',
+    }));
+  }, [user]);
 
   const handleLowerLinkClick = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -219,10 +236,10 @@ export default function ContactPage() {
                   <div className="absolute -left-6 -top-6 h-24 w-24 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl animate-float" />
                   <div className="absolute -right-6 -bottom-6 h-28 w-28 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl animate-float-slow" />
                   <Image
-                    src="/librarian-illustration.svg"
-                    alt="Friendly librarian illustration"
+                    src="/librarian.jpg"
+                    alt="Meet your librarian"
                     fill
-                    className="object-contain p-4 sm:p-6"
+                    className="object-cover object-center"
                     sizes="(min-width: 1024px) 40vw, 100vw"
                     priority
                   />
@@ -272,6 +289,14 @@ export default function ContactPage() {
                   Share your question below and we will follow up shortly. Borrowing issues are
                   usually resolved within 24 hours.
                 </p>
+
+                {user && (
+                  <div className="mt-5 rounded-2xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-sm text-sky-50">
+                    Signed in as {roleLabel}
+                    {accountIdentifier ? ` (${accountIdentifier})` : ''}. The admin will receive
+                    these account details with your message.
+                  </div>
+                )}
 
                 <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
                   {success && (

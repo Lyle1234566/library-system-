@@ -1,4 +1,4 @@
-# Salazar Library System
+# SCSIT Library System
 
 School library system built with Django, Next.js, and React Native/Expo.
 

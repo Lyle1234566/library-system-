@@ -126,7 +126,7 @@ def draw_arrow(draw: ImageDraw.ImageDraw, points: list[tuple[int, int]], *, colo
 
 
 def draw_title(draw: ImageDraw.ImageDraw) -> None:
-    draw.text((110, 70), "Salazar Library System Workflow", font=TITLE_FONT, fill=TEXT)
+    draw.text((110, 70), "SCSIT Library System Workflow", font=TITLE_FONT, fill=TEXT)
     subtitle = (
         "PNG overview generated from the current Django routes, auth flows, "
         "circulation models, and staff operations."

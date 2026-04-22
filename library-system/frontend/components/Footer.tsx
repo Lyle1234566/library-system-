@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 export default function Footer() {
   return (
-    <footer className="bg-[#0b1424] text-white">
+    <footer className="bg-[#071825] text-white">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
@@ -12,16 +12,16 @@ export default function Footer() {
               <div className="relative h-14 w-14 overflow-hidden rounded-xl border border-white/20">
                 <Image
                   src="/logo%20lib.png"
-                  alt="Salazar Library System logo"
+                  alt="SCSIT Library System logo"
                   fill
                   sizes="56px"
                   className="object-cover"
                 />
               </div>
-              <span className="text-xl font-semibold">Salazar Library System</span>
+              <span className="text-xl font-semibold">SCSIT Library System</span>
             </div>
             <p className="text-white/70 max-w-md">
-              Salazar Library System is designed to streamline book management,
+              SCSIT Library System is designed to streamline book management,
               user tracking, and borrowing processes for modern libraries.
             </p>
           </div>
@@ -91,7 +91,7 @@ export default function Footer() {
                     d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
                   />
                 </svg>
-                <span className="break-all">SalazarLibrary@gmail.com</span>
+                <span className="break-all">SCSITLibrary@gmail.com</span>
               </li>
               <li className="flex items-start space-x-2">
                 <svg
@@ -138,7 +138,7 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="mt-12 flex flex-col items-start justify-between gap-4 border-t border-white/10 pt-8 md:flex-row md:items-center">
           <p className="text-white/60 text-sm">
-            (c) {new Date().getFullYear()} Salazar Library System. All rights reserved.
+            (c) {new Date().getFullYear()} SCSIT Library System. All rights reserved.
           </p>
           <div className="flex flex-wrap gap-4 sm:gap-6">
             <Link

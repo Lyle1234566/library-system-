@@ -52,25 +52,25 @@ export default function HeroSection() {
   };
 
   return (
-    <section className="relative min-h-screen overflow-hidden flex items-center" style={{ background: 'radial-gradient(ellipse at 20% 50%, #0d1b3e 0%, #060d1f 40%, #080f22 70%, #050b1a 100%)' }}>
+    <section className="relative min-h-screen overflow-hidden flex items-center" style={{ background: 'radial-gradient(ellipse at 20% 50%, #102b44 0%, #081c2d 42%, #071825 72%, #061320 100%)' }}>
       <div className="absolute inset-0 pointer-events-none">
         {/* Midnight-navy mesh base */}
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #060e24 0%, #0a1530 35%, #080d1e 65%, #060b1a 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #081c2d 0%, #0d2740 35%, #092136 65%, #071825 100%)' }} />
         {/* Soft indigo corner glows */}
         <div className="absolute -left-32 -top-32 h-[32rem] w-[32rem] rounded-full animate-float" style={{ background: 'radial-gradient(circle, rgba(79,70,229,0.18) 0%, transparent 70%)', filter: 'blur(40px)' }} />
         <div className="absolute -right-32 -bottom-32 h-[36rem] w-[36rem] rounded-full animate-float-slow" style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.14) 0%, transparent 70%)', filter: 'blur(48px)' }} />
         <div className="absolute right-0 top-0 h-[28rem] w-[28rem] rounded-full" style={{ background: 'radial-gradient(circle, rgba(67,56,202,0.10) 0%, transparent 65%)', filter: 'blur(60px)' }} />
-        {/* Subtle amber warmth bottom-left */}
-        <div className="absolute -bottom-16 left-1/4 h-64 w-64 rounded-full animate-float" style={{ background: 'radial-gradient(circle, rgba(180,130,30,0.08) 0%, transparent 70%)', filter: 'blur(40px)' }} />
+        {/* Soft baby-blue glow bottom-left */}
+        <div className="absolute -bottom-16 left-1/4 h-64 w-64 rounded-full animate-float" style={{ background: 'radial-gradient(circle, rgba(142,219,255,0.10) 0%, transparent 70%)', filter: 'blur(40px)' }} />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-[1200px] px-6 py-14 sm:px-10 sm:py-16 lg:px-16 lg:py-20 xl:py-24">
+      <div className="relative z-10 mx-auto max-w-[1200px] px-6 pt-8 pb-0 sm:px-10 sm:pt-10 lg:px-16 lg:pt-12 xl:pt-14">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 xl:gap-14 items-center">
           <div className="space-y-6 sm:space-y-7">
-            <div className="inline-flex max-w-full items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-semibold backdrop-blur-sm animate-fade-up" style={{ borderColor: 'rgba(212,175,55,0.35)', background: 'rgba(212,175,55,0.08)', color: '#d4af37', letterSpacing: '0.12em' }}>
+            <div className="inline-flex max-w-full items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-semibold backdrop-blur-sm animate-fade-up" style={{ borderColor: 'rgba(142,219,255,0.35)', background: 'rgba(142,219,255,0.08)', color: '#9fdfff', letterSpacing: '0.12em' }}>
               <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" style={{ background: '#d4af37' }} />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: '#d4af37' }} />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" style={{ background: '#9fdfff' }} />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: '#9fdfff' }} />
               </span>
               Digital Borrowing
             </div>
@@ -85,9 +85,9 @@ export default function HeroSection() {
                   lineHeight: 0.94,
                 }}
               >
-                Salazar Library System
+                SCSIT Library System
               </span>
-              <span className="block mt-2.5 font-sans text-base sm:text-lg md:text-xl font-medium tracking-wide" style={{ color: '#c9a84c' }}>
+              <span className="block mt-2.5 font-sans text-base sm:text-lg md:text-xl font-medium tracking-wide" style={{ color: '#9fdfff' }}>
                 THE FOUNDATION OF PERPETUAL GROWTH
               </span>
             </h1>
@@ -141,7 +141,7 @@ export default function HeroSection() {
                       boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
                     }}
                   >
-                    <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: 'rgba(212,175,55,0.7)' }}>Trending Books</p>
+                    <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: 'rgba(159,223,255,0.76)' }}>Trending Books</p>
                     {trendingSearches.map((term) => (
                       <button
                         key={term}
@@ -155,7 +155,7 @@ export default function HeroSection() {
                         onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
                         onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                       >
-                        <svg className="w-3.5 h-3.5 shrink-0" style={{ color: 'rgba(212,175,55,0.6)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5 shrink-0" style={{ color: 'rgba(159,223,255,0.7)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                         </svg>
                         {term}
@@ -186,7 +186,7 @@ export default function HeroSection() {
                 Real-time availability
               </div>
               <div className="flex items-center gap-2 transition-colors duration-300 hover:text-white/80">
-                <div className="h-1.5 w-1.5 rounded-full" style={{ background: '#d4af37' }} />
+                <div className="h-1.5 w-1.5 rounded-full" style={{ background: '#9fdfff' }} />
                 Borrow receipts
               </div>
               <div className="flex items-center gap-2 transition-colors duration-300 hover:text-white/80">

@@ -145,17 +145,17 @@ export default function Features({ showBookFeatures = false }: FeaturesProps) {
     'Quick recap page at the end of each chapter',
   ];
   return (
-    <section className="relative overflow-hidden py-20 sm:py-28" style={{ background: 'linear-gradient(180deg, #060e24 0%, #080f22 50%, #060b1a 100%)' }}>
+    <section className="relative overflow-hidden py-10 sm:py-14" style={{ background: 'linear-gradient(180deg, #071825 0%, #0b2134 50%, #081c2d 100%)' }}>
       {/* Section transition top */}
-      <div className="absolute inset-x-0 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.3), transparent)' }} />
+      <div className="absolute inset-x-0 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(142,219,255,0.25), transparent)' }} />
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute -left-32 top-10 h-80 w-80 rounded-full animate-float" style={{ background: 'radial-gradient(circle, rgba(79,70,229,0.12) 0%, transparent 70%)', filter: 'blur(40px)' }} />
-        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full animate-float-slow" style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 70%)', filter: 'blur(48px)' }} />
+        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full animate-float-slow" style={{ background: 'radial-gradient(circle, rgba(142,219,255,0.08) 0%, transparent 70%)', filter: 'blur(48px)' }} />
       </div>
       <div className="relative max-w-[1200px] mx-auto px-6 sm:px-10 lg:px-16">
         {/* Section Header */}
         <div className="mx-auto mb-12 max-w-2xl text-center">
-          <span className="inline-flex items-center rounded-full px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] animate-fade-up" style={{ border: '1px solid rgba(212,175,55,0.25)', background: 'rgba(212,175,55,0.07)', color: '#d4af37' }}>
+          <span className="inline-flex items-center rounded-full px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] animate-fade-up" style={{ border: '1px solid rgba(142,219,255,0.25)', background: 'rgba(142,219,255,0.07)', color: '#9fdfff' }}>
             Core Features
           </span>
           <h2
@@ -168,7 +168,7 @@ export default function Features({ showBookFeatures = false }: FeaturesProps) {
               backgroundClip: 'text',
             }}
           >
-            Why Choose Salazar Library System?
+            Why Choose SCSIT Library System?
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-7 animate-fade-up delay-100" style={{ color: 'rgba(180,200,240,0.6)' }}>
             Experience the future of library management with our feature-rich platform
@@ -191,7 +191,7 @@ export default function Features({ showBookFeatures = false }: FeaturesProps) {
             >
               <div className="pointer-events-none absolute inset-0">
                 <div className="absolute inset-x-0 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent)' }} />
-                <div className="absolute -right-10 top-8 h-20 w-20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.14) 0%, transparent 70%)', filter: 'blur(16px)' }} />
+                <div className="absolute -right-10 top-8 h-20 w-20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: 'radial-gradient(circle, rgba(142,219,255,0.16) 0%, transparent 70%)', filter: 'blur(16px)' }} />
                 <div className="absolute -left-10 bottom-0 h-24 w-24 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: 'radial-gradient(circle, rgba(0,229,255,0.09) 0%, transparent 70%)', filter: 'blur(16px)' }} />
               </div>
 
@@ -200,10 +200,10 @@ export default function Features({ showBookFeatures = false }: FeaturesProps) {
                   <div
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300 group-hover:scale-105 [&_svg]:w-5 [&_svg]:h-5"
                     style={{
-                      background: 'rgba(212,175,55,0.10)',
-                      border: '1px solid rgba(212,175,55,0.18)',
-                      color: '#d4af37',
-                      boxShadow: '0 0 16px rgba(212,175,55,0.10)',
+                      background: 'rgba(142,219,255,0.10)',
+                      border: '1px solid rgba(142,219,255,0.18)',
+                      color: '#9fdfff',
+                      boxShadow: '0 0 16px rgba(142,219,255,0.12)',
                     }}
                   >
                     {feature.icon}
@@ -245,7 +245,7 @@ export default function Features({ showBookFeatures = false }: FeaturesProps) {
                   <ul className="mt-3 space-y-2 text-sm text-white/75">
                     {feature.points.map((point) => (
                       <li key={point} className="flex items-start gap-2">
-                        <span className="mt-[2px] text-amber-300">-</span>
+                        <span className="mt-[2px] text-sky-300">-</span>
                         <span>{point}</span>
                       </li>
                     ))}
@@ -297,7 +297,7 @@ export default function Features({ showBookFeatures = false }: FeaturesProps) {
               <ul className="mt-3 space-y-2 text-sm text-white/75">
                 {suggestedAdditions.map((item) => (
                   <li key={item} className="flex items-start gap-2">
-                    <span className="mt-[2px] text-amber-300">+</span>
+                    <span className="mt-[2px] text-sky-300">+</span>
                     <span>{item}</span>
                   </li>
                 ))}

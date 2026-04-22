@@ -115,7 +115,7 @@ export default function BorrowSlip({
                   Official Library Form
                 </p>
                 <h1 className="mt-2 font-serif text-3xl font-semibold tracking-[0.03em] text-slate-950">
-                  Salazar Library System Borrow Slip
+                  SCSIT Library System Borrow Slip
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
                   This slip serves as the official borrowing record for student-issued library
@@ -162,7 +162,7 @@ export default function BorrowSlip({
               <dl className="space-y-4">
                 <DetailRow label="Book Title" value={displayBookTitle} />
                 <DetailRow label="Author" value={displayAuthor} />
-                <DetailRow label="Call Number / Accession No." value={displayCallNumber} />
+                <DetailRow label="Call Number" value={displayCallNumber} />
               </dl>
 
               <div className="mt-8 rounded-2xl border border-slate-300 bg-slate-50 px-4 py-4">

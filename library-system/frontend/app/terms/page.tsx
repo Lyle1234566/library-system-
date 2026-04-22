@@ -40,7 +40,7 @@ export default function TermsPage() {
               Terms of Service
             </h1>
             <p className="mt-3 text-white/70 max-w-2xl animate-fade-up delay-200">
-              These terms define the rules for using the Salazar Library System platform.
+              These terms define the rules for using the SCSIT Library System platform.
             </p>
           </div>
         </section>

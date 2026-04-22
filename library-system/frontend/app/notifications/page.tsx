@@ -11,6 +11,7 @@ import {
   CircleAlert,
   Loader2,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react';
 import Footer from '@/components/Footer';
 import Navbar from '@/components/Navbar';
@@ -18,6 +19,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import { useToast } from '@/components/ToastProvider';
 import { Notification, notificationsApi } from '@/lib/api';
 import { emitUnreadCountUpdated } from '@/lib/notificationEvents';
+import { getNotificationCategory, getNotificationHref } from '@/lib/notificationRouting';
 
 type FilterMode = 'all' | 'unread';
 
@@ -70,38 +72,6 @@ function formatRelativeTime(value: string) {
   return 'Just now';
 }
 
-function getNotificationCategory(notification: Notification) {
-  if (notification.notification_type.startsWith('RESERVATION')) {
-    return 'reservation';
-  }
-  if (
-    notification.notification_type.startsWith('BORROW') ||
-    notification.notification_type.startsWith('RETURN') ||
-    notification.notification_type.startsWith('RENEWAL') ||
-    notification.notification_type.startsWith('REPORT')
-  ) {
-    return 'circulation';
-  }
-  if (notification.notification_type.startsWith('FINE') || notification.notification_type === 'DUE_SOON') {
-    return 'reminder';
-  }
-  return 'account';
-}
-
-function getNotificationHref(notification: Notification) {
-  const maybeBookId = notification.data?.book_id;
-  const bookId = typeof maybeBookId === 'number' ? maybeBookId : null;
-  const category = getNotificationCategory(notification);
-
-  if (category === 'reservation') {
-    return bookId ? `/books/${bookId}` : '/reservations';
-  }
-  if (category === 'circulation' || category === 'reminder') {
-    return bookId ? `/books/${bookId}` : '/my-books';
-  }
-  return '/settings';
-}
-
 function getToneClasses(category: ReturnType<typeof getNotificationCategory>, isRead: boolean) {
   const base = isRead
     ? 'border-white/10 bg-white/[0.03]'
@@ -127,6 +97,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [markingId, setMarkingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
   const requestVersionRef = useRef(0);
 
@@ -276,6 +247,27 @@ export default function NotificationsPage() {
     showToast(response.data?.message ?? 'All notifications marked as read.', 'success');
   };
 
+  const handleDeleteNotification = async (notification: Notification) => {
+    setDeletingId(notification.id);
+    const response = await notificationsApi.deleteNotification(notification.id);
+    setDeletingId(null);
+
+    if (response.error) {
+      showToast(response.error, 'error');
+      return;
+    }
+
+    setNotifications((current) =>
+      current.filter((currentNotification) => currentNotification.id !== notification.id)
+    );
+    const nextUnreadCount =
+      response.data?.unread_count ??
+      (notification.is_read ? unreadCount : Math.max(unreadCount - 1, 0));
+    setUnreadCount(nextUnreadCount);
+    emitUnreadCountUpdated(nextUnreadCount);
+    showToast(response.data?.message ?? 'Notification deleted.', 'success');
+  };
+
   return (
     <ProtectedRoute>
       <div className="theme-login min-h-screen bg-[#0b1324] text-white">
@@ -287,9 +279,9 @@ export default function NotificationsPage() {
           </div>
 
           <section className="relative overflow-hidden border-b border-white/10 bg-gradient-to-br from-[#091120] via-[#0d172b] to-[#0b1324]">
-            <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+            <div className="mx-auto max-w-6xl px-4 pb-14 pt-10 sm:px-6 sm:pb-16 sm:pt-12 lg:px-8">
               <p className="text-xs uppercase tracking-[0.35em] text-sky-200/70">Account Center</p>
-              <div className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.95fr)] lg:items-end">
+              <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.95fr)] lg:items-end">
                 <div>
                   <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                     Notifications and library updates
@@ -495,7 +487,7 @@ export default function NotificationsPage() {
                               <button
                                 type="button"
                                 onClick={() => void handleMarkAsRead(notification.id)}
-                                disabled={markingId === notification.id}
+                                disabled={markingId === notification.id || deletingId === notification.id}
                                 className="inline-flex items-center rounded-full bg-amber-400 px-4 py-2 text-sm font-semibold text-[#112038] transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {markingId === notification.id ? (
@@ -506,6 +498,19 @@ export default function NotificationsPage() {
                                 Mark read
                               </button>
                             )}
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteNotification(notification)}
+                              disabled={deletingId === notification.id || markingId === notification.id}
+                              className="inline-flex items-center rounded-full border border-rose-300/20 bg-rose-500/12 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/18 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {deletingId === notification.id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="mr-2 h-4 w-4" />
+                              )}
+                              Delete
+                            </button>
                           </div>
                         </div>
                       </article>

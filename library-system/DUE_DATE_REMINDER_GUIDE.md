@@ -50,7 +50,7 @@ Please return or renew it on time to avoid late fees.
 Late fee rate: ₱100.00 per day overdue.
 If you already requested a return, you can ignore this reminder.
 
-Salazar Library System
+SCSIT Library System
 ```
 
 ### **In-App Notification**

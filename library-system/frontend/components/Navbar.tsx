@@ -7,6 +7,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { notificationsApi, resolveMediaUrl } from '@/lib/api';
 import { subscribeToUnreadCountUpdated } from '@/lib/notificationEvents';
+import { subscribeToPendingCounts, type PendingCounts } from '@/lib/pendingCounts';
 import { getUserRoleLabel, hasStaffDeskAccess, isWorkingStudent } from '@/lib/roles';
 
 type NavbarProps = {
@@ -25,6 +26,7 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingCounts, setPendingCounts] = useState<PendingCounts | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const { user, isAuthenticated, logout, isLoading } = useAuth();
@@ -143,12 +145,28 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
     });
   }, []);
 
+  useEffect(() => {
+    return subscribeToPendingCounts((counts) => {
+      setPendingCounts(counts);
+    });
+  }, []);
+
   const handleLogout = () => {
     logout();
     setUnreadCount(0);
+    setPendingCounts(null);
     setIsProfileOpen(false);
     setIsMenuOpen(false);
   };
+
+  const isStaffOrLibrarian = user && ['LIBRARIAN', 'ADMIN', 'STAFF', 'WORKING'].includes(user.role);
+  const pendingWorkCount = isStaffOrLibrarian && pendingCounts
+    ? (pendingCounts.pendingAccounts +
+       pendingCounts.borrowRequests +
+       pendingCounts.returnRequests +
+       pendingCounts.renewalRequests +
+       pendingCounts.overdueBooks)
+    : 0;
 
   const avatarUrl = user?.avatar ? resolveMediaUrl(user.avatar) : null;
   const defaultAvatarUrl = '/student-avatar.svg';
@@ -172,24 +190,24 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
     <nav
       className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-xl shadow-[var(--nav-shadow)] ${
         isDark
-          ? 'bg-[linear-gradient(180deg,rgba(4,12,31,0.52)_0%,rgba(8,18,40,0.56)_52%,rgba(7,17,36,0.50)_100%)] shadow-[0_18px_52px_rgba(2,8,23,0.24)]'
+          ? 'bg-[linear-gradient(180deg,rgba(7,24,37,0.62)_0%,rgba(10,32,49,0.58)_52%,rgba(8,28,44,0.52)_100%)] shadow-[0_18px_52px_rgba(2,8,23,0.24)]'
           : 'bg-[linear-gradient(180deg,rgba(255,255,255,0.95)_0%,rgba(245,249,255,0.90)_100%)]'
       }`}
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
           className={`absolute left-[12%] top-[-8rem] h-56 w-56 rounded-full blur-3xl ${
-            isDark ? 'bg-sky-500/14' : 'bg-sky-500/10'
+            isDark ? 'bg-sky-300/14' : 'bg-sky-400/10'
           }`}
         />
         <div
           className={`absolute right-[10%] top-[-9rem] h-64 w-64 rounded-full blur-3xl ${
-            isDark ? 'bg-cyan-400/10' : 'bg-cyan-400/7'
+            isDark ? 'bg-cyan-200/12' : 'bg-cyan-300/8'
           }`}
         />
         <div
           className={`absolute left-1/2 top-full h-16 w-[32rem] -translate-x-1/2 -translate-y-8 blur-3xl ${
-            isDark ? 'bg-sky-400/10' : 'bg-sky-500/8'
+            isDark ? 'bg-sky-200/12' : 'bg-sky-400/8'
           }`}
         />
       </div>
@@ -204,7 +222,7 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
             >
               <Image
                 src="/logo%20lib.png"
-                alt="Salazar Library System logo"
+                alt="SCSIT Library System logo"
                 fill
                 sizes="(min-width: 640px) 56px, 48px"
                 className="object-cover"
@@ -212,10 +230,10 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
             </div>
             <div className="min-w-0 leading-tight">
               <span className={`block truncate text-[0.98rem] font-semibold tracking-tight sm:text-[1.08rem] ${isDark ? 'text-white' : 'text-ink'}`}>
-                Salazar Library System
+                SCSIT Library System
               </span>
-              <span className={`hidden sm:block text-[0.62rem] font-medium uppercase tracking-[0.34em] ${isDark ? 'text-white/42' : 'text-ink-muted/75'}`}>
-                Salazar Library System
+              <span className={`hidden sm:block truncate text-[0.52rem] font-medium uppercase tracking-[0.16em] ${isDark ? 'text-white/42' : 'text-ink-muted/75'}`}>
+                Salazar Colleges of Science and Institute of Technology
               </span>
             </div>
           </Link>
@@ -257,12 +275,12 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
                       : 'bg-white/90 shadow-[0_12px_24px_rgba(15,23,42,0.08)] hover:bg-white'
                   }`}
                 >
-                  {unreadCount > 0 && (
-                    <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 text-[10px] font-bold text-[#10203a] shadow-[0_10px_24px_rgba(251,191,36,0.35)]">
-                      {unreadCount > 9 ? '9+' : unreadCount}
+                  {(unreadCount > 0 || pendingWorkCount > 0) && (
+                    <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-sky-200 px-1.5 text-[10px] font-bold text-[#08213a] shadow-[0_10px_24px_rgba(142,219,255,0.35)]">
+                      {(unreadCount + pendingWorkCount) > 9 ? '9+' : (unreadCount + pendingWorkCount)}
                     </span>
                   )}
-                  <div className="w-8 h-8 rounded-full bg-sky-500 flex items-center justify-center text-white font-semibold overflow-hidden" style={{ boxShadow: '0 0 0 2px rgba(56,189,248,0.7), 0 0 10px rgba(56,189,248,0.3)' }}>
+                  <div className="w-8 h-8 rounded-full bg-[#8edbff] flex items-center justify-center text-[#08213a] font-semibold overflow-hidden" style={{ boxShadow: '0 0 0 2px rgba(142,219,255,0.7), 0 0 10px rgba(142,219,255,0.3)' }}>
                     {avatarUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={avatarUrl} alt={user.full_name} className="h-full w-full object-cover" />
@@ -325,11 +343,22 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
                         </svg>
                         Notifications
                         {unreadCount > 0 && (
-                          <span className="ml-auto rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold text-[#10203a]">
+                          <span className="ml-auto rounded-full bg-sky-200 px-2 py-0.5 text-[10px] font-bold text-[#08213a]">
                             {unreadCount > 9 ? '9+' : unreadCount}
                           </span>
                         )}
                       </Link>
+                      {isStaffOrLibrarian && pendingWorkCount > 0 && (
+                        <div className={`${dropdownItemClasses} pointer-events-none`}>
+                          <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          </svg>
+                          <span className="text-xs text-sky-300 font-semibold">Pending work</span>
+                          <span className="ml-auto rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                            {pendingWorkCount > 9 ? '9+' : pendingWorkCount}
+                          </span>
+                        </div>
+                      )}
                       {showLibrarianDesk && (
                         <Link
                           href="/librarian"
@@ -458,7 +487,7 @@ export default function Navbar({ variant = 'light' }: NavbarProps) {
                     <div className="space-y-4">
                       {/* User Info */}
                       <div className="flex min-w-0 items-center space-x-3">
-                        <div className="w-10 h-10 rounded-full bg-sky-500 flex items-center justify-center text-white font-semibold shadow-soft overflow-hidden">
+                        <div className="w-10 h-10 rounded-full bg-[#8edbff] flex items-center justify-center text-[#08213a] font-semibold shadow-soft overflow-hidden">
                           {avatarUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={avatarUrl} alt={user.full_name} className="h-full w-full object-cover" />

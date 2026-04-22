@@ -50,7 +50,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (response.user) {
           setCurrentUser(response.user);
         } else {
-          void authApi.logout();
+          setCurrentUser(null);
+          await authApi.logout({ skipServer: true });
         }
       }
       setIsLoading(false);

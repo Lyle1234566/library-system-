@@ -1,6 +1,6 @@
 # 🚀 Vercel + Railway Deployment Guide
 
-Complete step-by-step guide to deploy your Salazar Library System.
+Complete step-by-step guide to deploy your SCSIT Library System.
 
 ---
 
@@ -82,7 +82,7 @@ EMAIL_PORT=587
 EMAIL_USE_TLS=true
 EMAIL_HOST_USER=your-email@gmail.com
 EMAIL_HOST_PASSWORD=your-app-password
-DEFAULT_FROM_EMAIL=Salazar Library System <your-email@gmail.com>
+DEFAULT_FROM_EMAIL=SCSIT Library System <your-email@gmail.com>
 
 # Library Settings
 LATE_FEE_PER_DAY=100.00

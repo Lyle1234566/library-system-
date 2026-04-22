@@ -319,6 +319,7 @@ export interface Reservation {
 type NotificationListResponse = {
   results?: Notification[];
   unread_count?: number;
+  total_count?: number;
 };
 
 type NotificationUnreadCountResponse = {
@@ -363,11 +364,59 @@ export interface EnrollmentImportResult extends EnrollmentSummary {
   skipped_rows: string[];
 }
 
+export interface TeacherRecordsSummary {
+  total_records: number;
+  active_records: number;
+  inactive_records: number;
+  latest_term: string | null;
+  last_updated_at: string | null;
+  template_columns: string[];
+}
+
+export interface TeacherRecordsImportResult extends TeacherRecordsSummary {
+  message: string;
+  created_count: number;
+  updated_count: number;
+  skipped_count: number;
+  skipped_rows: string[];
+}
+
 export interface ContactMessagePayload {
   name: string;
   email: string;
   subject?: string;
   message: string;
+}
+
+export type ContactMessageStatus = 'NEW' | 'IN_PROGRESS' | 'RESOLVED';
+
+export interface ContactMessageRecord {
+  id: number;
+  user_id: number | null;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  internal_notes: string;
+  status: ContactMessageStatus;
+  created_at: string;
+  handled_at: string | null;
+  handled_by_id: number | null;
+  handled_by_name: string | null;
+  sender_role: string;
+  sender_identifier: string;
+}
+
+export interface ContactMessageListResult {
+  results: ContactMessageRecord[];
+  total_count: number;
+  filtered_count: number;
+  status_counts: Record<ContactMessageStatus, number>;
+}
+
+export interface ContactMessageUpdatePayload {
+  status?: ContactMessageStatus;
+  internal_notes?: string;
 }
 
 export interface PublicLibraryStats {
@@ -1201,6 +1250,94 @@ export const contactApi = {
   },
 };
 
+export const contactMessagesApi = {
+  async getMessages(options?: {
+    status?: ContactMessageStatus | 'ALL';
+    search?: string;
+    limit?: number;
+  }): Promise<ApiResponse<ContactMessageListResult>> {
+    try {
+      const params = new URLSearchParams();
+      if (options?.status && options.status !== 'ALL') {
+        params.set('status', options.status);
+      }
+      if (options?.search?.trim()) {
+        params.set('search', options.search.trim());
+      }
+      if (typeof options?.limit === 'number') {
+        params.set('limit', String(options.limit));
+      }
+      const query = params.toString();
+      const response = await fetchWithAuthRetry(`${API_BASE_URL}/auth/contact/messages/${query ? `?${query}` : ''}`, {
+        method: 'GET',
+        headers: buildHeaders(),
+      });
+      const { data, text } = await parseJsonResponse<ContactMessageListResult>(response);
+      if (!response.ok) {
+        return { data: null, error: normalizeErrorMessage(response, data, text) };
+      }
+      return {
+        data: {
+          results: data?.results ?? [],
+          total_count: data?.total_count ?? 0,
+          filtered_count: data?.filtered_count ?? 0,
+          status_counts: {
+            NEW: data?.status_counts?.NEW ?? 0,
+            IN_PROGRESS: data?.status_counts?.IN_PROGRESS ?? 0,
+            RESOLVED: data?.status_counts?.RESOLVED ?? 0,
+          },
+        },
+        error: null,
+      };
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  },
+
+  async updateMessage(
+    messageId: number,
+    payload: ContactMessageUpdatePayload
+  ): Promise<ApiResponse<ContactMessageRecord>> {
+    try {
+      const response = await fetchWithAuthRetry(`${API_BASE_URL}/auth/contact/messages/${messageId}/`, {
+        method: 'PATCH',
+        headers: buildHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const { data, text } = await parseJsonResponse<ContactMessageRecord>(response);
+      if (!response.ok) {
+        return { data: null, error: normalizeErrorMessage(response, data, text) };
+      }
+      if (data === null) {
+        return { data: null, error: 'Unexpected response from server.' };
+      }
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  },
+
+  async replyToMessage(
+    messageId: number,
+    reply: string
+  ): Promise<ApiResponse<{ message: string }>> {
+    try {
+      const response = await fetchWithAuthRetry(`${API_BASE_URL}/auth/contact/messages/${messageId}/reply/`, {
+        method: 'POST',
+        headers: buildHeaders(),
+        body: JSON.stringify({ reply }),
+      });
+      const { data, text } = await parseJsonResponse<{ message: string }>(response);
+      if (!response.ok) {
+        return { data: null, error: normalizeErrorMessage(response, data, text) };
+      }
+      return { data: data ?? { message: 'Reply sent.' }, error: null };
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  },
+};
+
 export const enrollmentApi = {
   async getSummary(): Promise<ApiResponse<EnrollmentSummary>> {
     try {
@@ -1248,6 +1385,53 @@ export const enrollmentApi = {
   },
 };
 
+export const teacherRecordsApi = {
+  async getSummary(): Promise<ApiResponse<TeacherRecordsSummary>> {
+    try {
+      const response = await fetchWithAuthRetry(`${API_BASE_URL}/auth/teacher-records/import/`, {
+        method: 'GET',
+        headers: buildHeaders(),
+      });
+      const { data, text } = await parseJsonResponse<TeacherRecordsSummary>(response);
+      if (!response.ok) {
+        return { data: null, error: normalizeErrorMessage(response, data, text) };
+      }
+      if (data === null) {
+        return { data: null, error: 'Unexpected response from server.' };
+      }
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  },
+
+  async importCsv(file: File, academicTerm?: string): Promise<ApiResponse<TeacherRecordsImportResult>> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (academicTerm?.trim()) {
+        formData.append('academic_term', academicTerm.trim());
+      }
+
+      const response = await fetchWithAuthRetry(`${API_BASE_URL}/auth/teacher-records/import/`, {
+        method: 'POST',
+        headers: buildMultipartHeaders(),
+        body: formData,
+      });
+      const { data, text } = await parseJsonResponse<TeacherRecordsImportResult>(response);
+      if (!response.ok) {
+        return { data: null, error: normalizeErrorMessage(response, data, text) };
+      }
+      if (data === null) {
+        return { data: null, error: 'Unexpected response from server.' };
+      }
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  },
+};
+
 export const notificationsApi = {
   async getNotifications(options?: { unread?: boolean; limit?: number }): Promise<ApiResponse<NotificationListResponse>> {
     try {
@@ -1271,6 +1455,7 @@ export const notificationsApi = {
         data: {
           results: data?.results || [],
           unread_count: data?.unread_count || 0,
+          total_count: data?.total_count || 0,
         },
         error: null,
       };
@@ -1302,6 +1487,28 @@ export const notificationsApi = {
         headers: buildHeaders(),
       });
       const { data, text } = await parseJsonResponse<{ message: string; unread_count: number }>(response);
+      if (!response.ok) {
+        return { data: null, error: normalizeErrorMessage(response, data, text) };
+      }
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  },
+
+  async deleteNotification(
+    notificationId: number
+  ): Promise<ApiResponse<{ message: string; unread_count: number; total_count: number }>> {
+    try {
+      const response = await fetchWithAuthRetry(`${API_BASE_URL}/auth/notifications/${notificationId}/`, {
+        method: 'DELETE',
+        headers: buildHeaders(),
+      });
+      const { data, text } = await parseJsonResponse<{
+        message: string;
+        unread_count: number;
+        total_count: number;
+      }>(response);
       if (!response.ok) {
         return { data: null, error: normalizeErrorMessage(response, data, text) };
       }

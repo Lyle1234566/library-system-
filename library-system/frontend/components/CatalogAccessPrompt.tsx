@@ -24,7 +24,7 @@ export default function CatalogAccessPrompt({
     >
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -left-12 top-0 h-40 w-40 rounded-full bg-sky-400/12 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-44 w-44 rounded-full bg-amber-400/10 blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-44 w-44 rounded-full bg-sky-200/10 blur-3xl" />
       </div>
 
       <div className="relative mx-auto max-w-2xl text-center">

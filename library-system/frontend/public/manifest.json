@@ -1,11 +1,11 @@
 {
-  "name": "Salazar Library System",
-  "short_name": "Salazar Library System",
-  "description": "Salazar Library System for students",
+  "name": "SCSIT Library System",
+  "short_name": "SCSIT Library System",
+  "description": "SCSIT Library System for students",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0b1324",
-  "theme_color": "#0284c7",
+  "background_color": "#071825",
+  "theme_color": "#8edbff",
   "orientation": "portrait-primary",
   "icons": [
     {

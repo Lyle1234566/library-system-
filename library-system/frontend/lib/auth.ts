@@ -213,6 +213,10 @@ export interface ApproveStudentOptions {
   is_working_student?: boolean;
 }
 
+interface LogoutOptions {
+  skipServer?: boolean;
+}
+
 // Token storage utilities
 export const tokenStorage = {
   getAccessToken(): string | null {
@@ -1254,21 +1258,25 @@ export const authApi = {
   },
 
   // Logout user
-  async logout(): Promise<void> {
+  async logout(options: LogoutOptions = {}): Promise<void> {
     const refresh = tokenStorage.getRefreshToken();
 
     try {
-      if (refresh) {
+      if (refresh && !options.skipServer) {
         const access = tokenStorage.getAccessToken();
-        await fetch(`${API_BASE_URL}/auth/logout/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            ...(access ? { Authorization: `Bearer ${access}` } : {}),
-          },
-          body: JSON.stringify({ refresh }),
-        });
+        try {
+          await fetch(`${API_BASE_URL}/auth/logout/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              ...(access ? { Authorization: `Bearer ${access}` } : {}),
+            },
+            body: JSON.stringify({ refresh }),
+          });
+        } catch {
+          // Local token cleanup below is enough to end the session if the API cannot be reached.
+        }
       }
     } finally {
       tokenStorage.clearTokens();

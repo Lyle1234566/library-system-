@@ -40,7 +40,7 @@ export default function PrivacyPage() {
               Privacy Policy
             </h1>
             <p className="mt-3 text-white/70 max-w-2xl animate-fade-up delay-200">
-              This policy explains how Salazar Library System handles personal information in the system.
+              This policy explains how SCSIT Library System handles personal information in the system.
             </p>
           </div>
         </section>

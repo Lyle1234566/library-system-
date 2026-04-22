@@ -1,4 +1,4 @@
-# Salazar Library System (React Native)
+# SCSIT Library System (React Native)
 
 This app uses the **same Django backend** as your existing web app:
 

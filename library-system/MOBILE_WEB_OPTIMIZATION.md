@@ -86,9 +86,9 @@ Add these files to make it installable:
 **manifest.json**
 ```json
 {
-  "name": "Salazar Library System",
-  "short_name": "Salazar Library System",
-  "description": "Salazar Library System",
+  "name": "SCSIT Library System",
+  "short_name": "SCSIT Library System",
+  "description": "SCSIT Library System",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b1324",
