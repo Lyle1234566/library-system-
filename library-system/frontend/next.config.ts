@@ -41,6 +41,7 @@ const buildRemotePattern = (value: string): MediaRemotePattern | null => {
 const collectMediaRemotePatterns = (): MediaRemotePattern[] => {
   const candidates = [
     "https://*.railway.app",
+    "https://res.cloudinary.com",
     "http://localhost",
     process.env.NEXT_PUBLIC_API_URL ?? "",
     ...(process.env.NEXT_PUBLIC_MEDIA_HOSTS ?? "").split(","),

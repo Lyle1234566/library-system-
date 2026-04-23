@@ -43,6 +43,13 @@ def health_check(_request):
         status=status_code,
     )
 
+
+def should_serve_media_files() -> bool:
+    media_url = str(getattr(settings, 'MEDIA_URL', '') or '').strip()
+    if not media_url.startswith('/'):
+        return False
+    return bool(settings.DEBUG or getattr(settings, 'SERVE_MEDIA_FILES', False))
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/health/', health_check, name='api_health'),
@@ -53,5 +60,5 @@ urlpatterns = [
     path('api/auth/', include('user.urls')),
 ]
 
-if settings.DEBUG or getattr(settings, 'SERVE_MEDIA_FILES', False):
+if should_serve_media_files():
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

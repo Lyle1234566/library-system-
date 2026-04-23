@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from datetime import timedelta
+import importlib.util
 import os
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -74,6 +75,44 @@ def get_env_int(key: str, default: int) -> int:
         return default
 
 
+def should_serve_media_files_by_default(media_url: str) -> bool:
+    return str(media_url or '').strip().startswith('/')
+
+
+def get_default_media_root(
+    base_dir: Path,
+    candidate_roots: tuple[Path, ...] | None = None,
+) -> Path:
+    candidates = candidate_roots or (
+        Path('/data/media'),
+        Path('/var/data/media'),
+        base_dir / 'media',
+    )
+    for candidate in candidates:
+        if candidate.parent.exists():
+            return candidate
+    return candidates[-1]
+
+
+def has_cloudinary_configuration() -> bool:
+    if get_env_str('CLOUDINARY_URL'):
+        return True
+    return all(
+        get_env_str(key)
+        for key in ('CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET')
+    )
+
+
+def is_module_available(module_name: str) -> bool:
+    return importlib.util.find_spec(module_name) is not None
+
+
+def get_default_media_storage_backend(cloudinary_enabled: bool) -> str:
+    if cloudinary_enabled:
+        return 'backend.storage_backends.CloudinaryMediaStorage'
+    return 'django.core.files.storage.FileSystemStorage'
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -84,6 +123,19 @@ ENABLE_PRODUCTION_SECURITY = not (DEBUG or RUNNING_TESTS)
 DEFAULT_WEB_URL = 'http://localhost:3000'
 DEFAULT_ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "10.0.2.2"]
 DEFAULT_CORS_ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+CLOUDINARY_CONFIGURED = has_cloudinary_configuration()
+CLOUDINARY_ENABLED = get_env_bool('USE_CLOUDINARY', CLOUDINARY_CONFIGURED)
+CLOUDINARY_PACKAGE_AVAILABLE = is_module_available('cloudinary')
+CLOUDINARY_MEDIA_FOLDER = get_env_str('CLOUDINARY_MEDIA_FOLDER', 'salazar-library')
+
+if CLOUDINARY_ENABLED and not CLOUDINARY_CONFIGURED:
+    raise ImproperlyConfigured(
+        'Cloudinary is enabled but CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET is missing.'
+    )
+if CLOUDINARY_ENABLED and not CLOUDINARY_PACKAGE_AVAILABLE:
+    raise ImproperlyConfigured(
+        'Cloudinary is enabled but the cloudinary package is not installed.'
+    )
 
 
 def require_production_env(key: str) -> str:
@@ -129,6 +181,27 @@ INSTALLED_APPS = [
     'corsheaders',
     'django.contrib.staticfiles',
 ]
+
+if CLOUDINARY_ENABLED:
+    INSTALLED_APPS.append('cloudinary')
+
+    import cloudinary
+
+    cloudinary_config: dict[str, object] = {
+        'secure': get_env_bool('CLOUDINARY_SECURE', True),
+    }
+    cloud_name = get_env_str('CLOUDINARY_CLOUD_NAME')
+    api_key = get_env_str('CLOUDINARY_API_KEY')
+    api_secret = get_env_str('CLOUDINARY_API_SECRET')
+    if cloud_name and api_key and api_secret:
+        cloudinary_config.update(
+            {
+                'cloud_name': cloud_name,
+                'api_key': api_key,
+                'api_secret': api_secret,
+            }
+        )
+    cloudinary.config(**cloudinary_config)
 
 
 REST_FRAMEWORK = {
@@ -442,10 +515,14 @@ USE_TZ = True
 STATIC_URL = get_env_str('STATIC_URL', '/static/')
 STATIC_ROOT = Path(get_env_str('STATIC_ROOT', str(BASE_DIR / 'staticfiles')))
 MEDIA_URL = get_env_str('MEDIA_URL', '/media/')
-render_disk_media_root = Path('/var/data/media')
-default_media_root = render_disk_media_root if render_disk_media_root.parent.exists() else BASE_DIR / 'media'
+default_media_root = get_default_media_root(BASE_DIR)
 MEDIA_ROOT = Path(get_env_str('MEDIA_ROOT', str(default_media_root)))
-SERVE_MEDIA_FILES = get_env_bool('SERVE_MEDIA_FILES', DEBUG)
+# Local filesystem uploads need a Django route in simple deployments such as Railway/Render.
+# Deployments using a CDN or object storage can explicitly disable this.
+SERVE_MEDIA_FILES = get_env_bool(
+    'SERVE_MEDIA_FILES',
+    False if CLOUDINARY_ENABLED else should_serve_media_files_by_default(MEDIA_URL),
+)
 
 # Only create MEDIA_ROOT if parent exists (disk is mounted)
 # On Render, disks are mounted at runtime, not during build
@@ -453,7 +530,7 @@ if MEDIA_ROOT.parent.exists():
     MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 STORAGES = {
     'default': {
-        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        'BACKEND': get_default_media_storage_backend(CLOUDINARY_ENABLED),
     },
     'staticfiles': {
         'BACKEND': (
