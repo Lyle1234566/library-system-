@@ -2,19 +2,38 @@
 
 import { useEffect, useState } from 'react';
 import { booksApi } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { shouldShowMeetLibrarian } from '@/lib/roles';
 
 export default function MeetLibrarian() {
+  const { user, isLoading: authLoading } = useAuth();
   const [totalBooks, setTotalBooks] = useState<number | null>(null);
+  const isVisible = !authLoading && shouldShowMeetLibrarian(user);
 
   useEffect(() => {
+    if (!isVisible) {
+      return;
+    }
+
+    let isActive = true;
+
     const fetchStats = async () => {
       const response = await booksApi.getAll();
-      if (!response.error && response.data) {
+      if (isActive && !response.error && response.data) {
         setTotalBooks(response.data.length);
       }
     };
+
     void fetchStats();
-  }, []);
+
+    return () => {
+      isActive = false;
+    };
+  }, [isVisible]);
+
+  if (!isVisible) {
+    return null;
+  }
 
   const formatCount = (n: number) =>
     n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K+` : `${n}+`;
