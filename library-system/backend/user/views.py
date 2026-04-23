@@ -151,6 +151,17 @@ def can_manage_enrollment_records(user) -> bool:
     )
 
 
+def can_send_contact_messages(user) -> bool:
+    return bool(
+        user
+        and user.is_authenticated
+        and (
+            is_super_admin(user)
+            or getattr(user, 'role', None) in {'LIBRARIAN', 'STAFF'}
+        )
+    )
+
+
 class CanViewPendingStudents(BasePermission):
     def has_permission(self, request, view):
         return can_manage_pending_students(request.user)
@@ -169,6 +180,13 @@ class CanManageEnrollmentRecords(BasePermission):
 class CanManageContactMessages(BasePermission):
     def has_permission(self, request, view):
         return can_manage_enrollment_records(request.user)
+
+
+class CanSendContactMessages(BasePermission):
+    message = 'Reader accounts cannot send feedback messages.'
+
+    def has_permission(self, request, view):
+        return can_send_contact_messages(request.user)
 
 
 def normalize_email_value(email: str | None) -> str:
@@ -1404,7 +1422,7 @@ class ContactMessageView(APIView):
     Accept contact form submissions and notify the admin by email.
     """
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, CanSendContactMessages]
     throttle_scope = 'contact'
 
     def post(self, request):

@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { contactApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserRoleLabel } from '@/lib/roles';
+import { canSendContactMessages, getUserRoleLabel } from '@/lib/roles';
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -85,7 +85,7 @@ const contactHighlights = [
 ];
 
 export default function ContactPage() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -97,18 +97,9 @@ export default function ContactPage() {
   const [success, setSuccess] = useState('');
   const accountIdentifier = user?.staff_id || user?.student_id || '';
   const roleLabel = getUserRoleLabel(user);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-
-    setFormData((current) => ({
-      ...current,
-      name: current.name || user.full_name || '',
-      email: current.email || user.email || '',
-    }));
-  }, [user]);
+  const canSubmitFeedback = canSendContactMessages(user);
+  const resolvedName = formData.name || user?.full_name || '';
+  const resolvedEmail = formData.email || user?.email || '';
 
   const handleLowerLinkClick = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -125,8 +116,13 @@ export default function ContactPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    const name = formData.name.trim();
-    const email = formData.email.trim();
+    if (!canSubmitFeedback) {
+      setError('Reader accounts cannot send feedback messages.');
+      return;
+    }
+
+    const name = resolvedName.trim();
+    const email = resolvedEmail.trim();
     const subject = formData.subject.trim();
     const message = formData.message.trim();
 
@@ -286,11 +282,11 @@ export default function ContactPage() {
                 <p className="text-xs uppercase tracking-[0.3em] text-white/60">Contact form</p>
                 <h3 className="mt-3 text-2xl font-semibold text-white">Tell us how we can help</h3>
                 <p className="mt-3 text-sm text-white/70 leading-relaxed">
-                  Share your question below and we will follow up shortly. Borrowing issues are
-                  usually resolved within 24 hours.
+                  Share an operational issue below and we will follow up shortly. This form is
+                  available to librarian, staff, and admin accounts.
                 </p>
 
-                {user && (
+                {user && canSubmitFeedback && (
                   <div className="mt-5 rounded-2xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-sm text-sky-50">
                     Signed in as {roleLabel}
                     {accountIdentifier ? ` (${accountIdentifier})` : ''}. The admin will receive
@@ -298,88 +294,97 @@ export default function ContactPage() {
                   </div>
                 )}
 
-                <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
-                  {success && (
-                    <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-100 animate-fade-up">
-                      {success}
+                {!isLoading && !canSubmitFeedback ? (
+                  <div className="mt-6 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-4 text-sm text-amber-100">
+                    Reader accounts cannot send feedback messages.
+                    {user
+                      ? ` You are signed in as ${roleLabel}${accountIdentifier ? ` (${accountIdentifier})` : ''}.`
+                      : ' Sign in with a librarian, staff, or admin account if you need access to this form.'}
+                  </div>
+                ) : (
+                  <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
+                    {success && (
+                      <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-100 animate-fade-up">
+                        {success}
+                      </div>
+                    )}
+                    {error && (
+                      <div className="rounded-2xl border border-rose-400/40 bg-rose-500/15 px-4 py-3 text-sm text-rose-100 animate-fade-up">
+                        {error}
+                      </div>
+                    )}
+
+                    <div>
+                      <label htmlFor="contact-name" className="text-sm font-medium text-white/80">
+                        Full name
+                      </label>
+                      <input
+                        id="contact-name"
+                        type="text"
+                        value={resolvedName}
+                        onChange={updateField('name')}
+                        placeholder="Your full name"
+                        className="mt-2 w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 transition-[border-color,box-shadow,background-color] duration-200 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-sky-400/60 focus:border-transparent"
+                        autoComplete="name"
+                      />
                     </div>
-                  )}
-                  {error && (
-                    <div className="rounded-2xl border border-rose-400/40 bg-rose-500/15 px-4 py-3 text-sm text-rose-100 animate-fade-up">
-                      {error}
+
+                    <div>
+                      <label htmlFor="contact-email" className="text-sm font-medium text-white/80">
+                        Email address
+                      </label>
+                      <input
+                        id="contact-email"
+                        type="email"
+                        value={resolvedEmail}
+                        onChange={updateField('email')}
+                        placeholder="you@gmail.com"
+                        className="mt-2 w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 transition-[border-color,box-shadow,background-color] duration-200 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-sky-400/60 focus:border-transparent"
+                        autoComplete="email"
+                      />
                     </div>
-                  )}
 
-                  <div>
-                    <label htmlFor="contact-name" className="text-sm font-medium text-white/80">
-                      Full name
-                    </label>
-                    <input
-                      id="contact-name"
-                      type="text"
-                      value={formData.name}
-                      onChange={updateField('name')}
-                      placeholder="Your full name"
-                      className="mt-2 w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 transition-[border-color,box-shadow,background-color] duration-200 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-sky-400/60 focus:border-transparent"
-                      autoComplete="name"
-                    />
-                  </div>
+                    <div>
+                      <label htmlFor="contact-subject" className="text-sm font-medium text-white/80">
+                        Subject (optional)
+                      </label>
+                      <input
+                        id="contact-subject"
+                        type="text"
+                        value={formData.subject}
+                        onChange={updateField('subject')}
+                        placeholder="Borrowing help, catalog update..."
+                        className="mt-2 w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 transition-[border-color,box-shadow,background-color] duration-200 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-sky-400/60 focus:border-transparent"
+                      />
+                    </div>
 
-                  <div>
-                    <label htmlFor="contact-email" className="text-sm font-medium text-white/80">
-                      Email address
-                    </label>
-                    <input
-                      id="contact-email"
-                      type="email"
-                      value={formData.email}
-                      onChange={updateField('email')}
-                      placeholder="you@gmail.com"
-                      className="mt-2 w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 transition-[border-color,box-shadow,background-color] duration-200 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-sky-400/60 focus:border-transparent"
-                      autoComplete="email"
-                    />
-                  </div>
+                    <div>
+                      <label htmlFor="contact-message" className="text-sm font-medium text-white/80">
+                        Message
+                      </label>
+                      <textarea
+                        id="contact-message"
+                        rows={5}
+                        value={formData.message}
+                        onChange={updateField('message')}
+                        placeholder="Tell us what you need help with..."
+                        className="mt-2 w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 transition-[border-color,box-shadow,background-color] duration-200 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-sky-400/60 focus:border-transparent"
+                      />
+                    </div>
 
-                  <div>
-                    <label htmlFor="contact-subject" className="text-sm font-medium text-white/80">
-                      Subject (optional)
-                    </label>
-                    <input
-                      id="contact-subject"
-                      type="text"
-                      value={formData.subject}
-                      onChange={updateField('subject')}
-                      placeholder="Borrowing help, catalog update..."
-                      className="mt-2 w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 transition-[border-color,box-shadow,background-color] duration-200 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-sky-400/60 focus:border-transparent"
-                    />
-                  </div>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full rounded-full bg-amber-400 px-5 py-3 text-sm font-semibold text-[#0b1324] shadow-2xl shadow-black/40 transition-all duration-300 hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                    >
+                      {isSubmitting ? 'Sending...' : 'Send message'}
+                    </button>
 
-                  <div>
-                    <label htmlFor="contact-message" className="text-sm font-medium text-white/80">
-                      Message
-                    </label>
-                    <textarea
-                      id="contact-message"
-                      rows={5}
-                      value={formData.message}
-                      onChange={updateField('message')}
-                      placeholder="Tell us what you need help with..."
-                      className="mt-2 w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 transition-[border-color,box-shadow,background-color] duration-200 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-sky-400/60 focus:border-transparent"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full rounded-full bg-amber-400 px-5 py-3 text-sm font-semibold text-[#0b1324] shadow-2xl shadow-black/40 transition-all duration-300 hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-                  >
-                    {isSubmitting ? 'Sending...' : 'Send message'}
-                  </button>
-
-                  <p className="text-xs text-white/50">
-                    We only use your details to respond to this request.
-                  </p>
-                </form>
+                    <p className="text-xs text-white/50">
+                      We only use your details to respond to this request.
+                    </p>
+                  </form>
+                )}
               </div>
             </div>
           </div>

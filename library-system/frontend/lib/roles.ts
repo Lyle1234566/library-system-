@@ -39,6 +39,10 @@ export function canBorrowAsPatron(user: RoleUser): boolean {
   return Boolean(user && (user.role === 'TEACHER' || user.role === 'STUDENT' || isWorkingStudent(user)));
 }
 
+export function canSendContactMessages(user: RoleUser): boolean {
+  return Boolean(user && (user.role === 'LIBRARIAN' || user.role === 'STAFF' || user.role === 'ADMIN'));
+}
+
 export function getDefaultSignedInRoute(user: RoleUser): string {
   if (!user) {
     return '/';

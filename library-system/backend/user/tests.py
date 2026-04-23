@@ -116,6 +116,15 @@ class ContactMessageSubmissionTests(TestCase):
             role='LIBRARIAN',
             is_active=True,
         )
+        self.staff_user = user_model.objects.create_user(
+            username='contact-staff',
+            password='StaffPass123!',
+            full_name='Contact Staff User',
+            staff_id='ST-4401',
+            email='contact-staff@example.com',
+            role='STAFF',
+            is_active=True,
+        )
         self.working_user = user_model.objects.create_user(
             username='contact-working',
             password='WorkingPass123!',
@@ -128,15 +137,35 @@ class ContactMessageSubmissionTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.teacher)
 
-    def test_teacher_contact_message_notifies_admin_and_saves_message(self):
+    def test_reader_account_cannot_submit_contact_message(self):
+        response = self.client.post(
+            '/api/auth/contact/',
+            {
+                'name': 'Teacher Sender',
+                'email': 'teacher.sender@example.com',
+                'subject': 'Borrowing concern',
+                'message': 'Please review my teacher borrowing request.',
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(ContactMessage.objects.count(), 0)
+        self.assertIn('reader accounts cannot send feedback messages', str(response.data['detail']).lower())
+        self.assertEqual(Notification.objects.count(), 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_librarian_contact_message_notifies_admin_and_saves_message(self):
+        self.client.force_authenticate(user=self.librarian_user)
+
         with self.captureOnCommitCallbacks(execute=True):
             response = self.client.post(
                 '/api/auth/contact/',
                 {
-                    'name': 'Teacher Sender',
-                    'email': 'teacher.sender@example.com',
-                    'subject': 'Borrowing concern',
-                    'message': 'Please review my teacher borrowing request.',
+                    'name': 'Contact Librarian',
+                    'email': 'contact-librarian@example.com',
+                    'subject': 'Internal escalation',
+                    'message': 'Please review this circulation desk issue.',
                 },
                 format='json',
             )
@@ -145,8 +174,8 @@ class ContactMessageSubmissionTests(TestCase):
         self.assertEqual(ContactMessage.objects.count(), 1)
 
         contact_message = ContactMessage.objects.get()
-        self.assertEqual(contact_message.user, self.teacher)
-        self.assertEqual(contact_message.subject, 'Borrowing concern')
+        self.assertEqual(contact_message.user, self.librarian_user)
+        self.assertEqual(contact_message.subject, 'Internal escalation')
         self.assertEqual(contact_message.status, ContactMessage.STATUS_NEW)
         self.assertEqual(contact_message.internal_notes, '')
 
@@ -159,8 +188,8 @@ class ContactMessageSubmissionTests(TestCase):
             notification_type=Notification.TYPE_CONTACT_MESSAGE_RECEIVED,
         )
         self.assertEqual(admin_notification.data['dashboard_section'], 'desk-contact')
-        self.assertEqual(admin_notification.data['sender_role'], 'Teacher')
-        self.assertEqual(admin_notification.data['sender_identifier'], 'T-4401')
+        self.assertEqual(admin_notification.data['sender_role'], 'Librarian')
+        self.assertEqual(admin_notification.data['sender_identifier'], 'L-4401')
         self.assertEqual(admin_notification.data['contact_message_id'], contact_message.id)
         self.assertEqual(librarian_notification.data['dashboard_section'], 'desk-contact')
         self.assertEqual(librarian_notification.data['portal'], 'librarian')
@@ -180,10 +209,10 @@ class ContactMessageSubmissionTests(TestCase):
                 'contact-librarian@example.com',
             ]),
         )
-        self.assertTrue(any('Borrowing concern' in email.subject for email in mail.outbox))
-        self.assertTrue(any('New contact message from Teacher Sender' in email.subject for email in mail.outbox))
-        self.assertTrue(any('Role: Teacher' in email.body for email in mail.outbox))
-        self.assertTrue(any('Account ID: T-4401' in email.body for email in mail.outbox))
+        self.assertTrue(any('Internal escalation' in email.subject for email in mail.outbox))
+        self.assertTrue(any('New contact message from Contact Librarian' in email.subject for email in mail.outbox))
+        self.assertTrue(any('Role: Librarian' in email.body for email in mail.outbox))
+        self.assertTrue(any('Account ID: L-4401' in email.body for email in mail.outbox))
 
 
 class ContactMessageManagementApiTests(TestCase):
