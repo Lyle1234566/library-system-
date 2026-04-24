@@ -44,7 +44,17 @@ export function shouldShowMeetLibrarian(user: RoleUser): boolean {
 }
 
 export function canSendContactMessages(user: RoleUser): boolean {
-  return Boolean(user && (user.role === 'LIBRARIAN' || user.role === 'STAFF' || user.role === 'ADMIN'));
+  return Boolean(
+    user &&
+      (
+        user.role === 'STUDENT'
+        || user.role === 'TEACHER'
+        || user.role === 'WORKING'
+        || user.role === 'LIBRARIAN'
+        || user.role === 'STAFF'
+        || user.role === 'ADMIN'
+      )
+  );
 }
 
 export function getDefaultSignedInRoute(user: RoleUser): string {

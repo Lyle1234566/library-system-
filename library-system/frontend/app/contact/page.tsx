@@ -117,7 +117,7 @@ export default function ContactPage() {
     event.preventDefault();
 
     if (!canSubmitFeedback) {
-      setError('Reader accounts cannot send feedback messages.');
+      setError(user ? 'This account cannot send feedback messages.' : 'Please sign in to send feedback messages.');
       return;
     }
 
@@ -283,7 +283,7 @@ export default function ContactPage() {
                 <h3 className="mt-3 text-2xl font-semibold text-white">Tell us how we can help</h3>
                 <p className="mt-3 text-sm text-white/70 leading-relaxed">
                   Share an operational issue below and we will follow up shortly. This form is
-                  available to librarian, staff, and admin accounts.
+                  available to signed-in student, teacher, librarian, staff, and admin accounts.
                 </p>
 
                 {user && canSubmitFeedback && (
@@ -296,10 +296,12 @@ export default function ContactPage() {
 
                 {!isLoading && !canSubmitFeedback ? (
                   <div className="mt-6 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-4 text-sm text-amber-100">
-                    Reader accounts cannot send feedback messages.
+                    {user
+                      ? 'This account cannot send feedback messages.'
+                      : 'Please sign in to send feedback messages.'}
                     {user
                       ? ` You are signed in as ${roleLabel}${accountIdentifier ? ` (${accountIdentifier})` : ''}.`
-                      : ' Sign in with a librarian, staff, or admin account if you need access to this form.'}
+                      : ' Sign in with your student, teacher, librarian, staff, or admin account to use this form.'}
                   </div>
                 ) : (
                   <form className="mt-6 space-y-5" onSubmit={handleSubmit}>

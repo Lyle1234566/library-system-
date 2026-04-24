@@ -157,7 +157,7 @@ def can_send_contact_messages(user) -> bool:
         and user.is_authenticated
         and (
             is_super_admin(user)
-            or getattr(user, 'role', None) in {'LIBRARIAN', 'STAFF'}
+            or getattr(user, 'role', None) in {'STUDENT', 'TEACHER', 'WORKING', 'LIBRARIAN', 'STAFF'}
         )
     )
 
@@ -183,7 +183,7 @@ class CanManageContactMessages(BasePermission):
 
 
 class CanSendContactMessages(BasePermission):
-    message = 'Reader accounts cannot send feedback messages.'
+    message = 'This account cannot send feedback messages.'
 
     def has_permission(self, request, view):
         return can_send_contact_messages(request.user)

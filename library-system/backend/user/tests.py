@@ -137,23 +137,66 @@ class ContactMessageSubmissionTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.teacher)
 
-    def test_reader_account_cannot_submit_contact_message(self):
+    def test_guest_reader_cannot_submit_contact_message(self):
+        self.client.force_authenticate(user=None)
+
         response = self.client.post(
             '/api/auth/contact/',
             {
-                'name': 'Teacher Sender',
-                'email': 'teacher.sender@example.com',
+                'name': 'Guest Reader',
+                'email': 'guest.reader@example.com',
                 'subject': 'Borrowing concern',
-                'message': 'Please review my teacher borrowing request.',
+                'message': 'Please review the public inquiry.',
             },
             format='json',
         )
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(ContactMessage.objects.count(), 0)
-        self.assertIn('reader accounts cannot send feedback messages', str(response.data['detail']).lower())
         self.assertEqual(Notification.objects.count(), 0)
         self.assertEqual(len(mail.outbox), 0)
+
+    def test_teacher_can_submit_contact_message(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                '/api/auth/contact/',
+                {
+                    'name': 'Teacher Sender',
+                    'email': 'teacher.sender@example.com',
+                    'subject': 'Borrowing concern',
+                    'message': 'Please review my teacher borrowing request.',
+                },
+                format='json',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(ContactMessage.objects.count(), 1)
+
+        contact_message = ContactMessage.objects.get()
+        self.assertEqual(contact_message.user, self.teacher)
+        self.assertEqual(contact_message.subject, 'Borrowing concern')
+
+        admin_notification = Notification.objects.get(
+            user=self.admin_user,
+            notification_type=Notification.TYPE_CONTACT_MESSAGE_RECEIVED,
+        )
+        self.assertEqual(admin_notification.data['dashboard_section'], 'desk-contact')
+        self.assertEqual(admin_notification.data['sender_role'], 'Teacher')
+        self.assertEqual(admin_notification.data['sender_identifier'], 'T-4401')
+        self.assertEqual(admin_notification.data['contact_message_id'], contact_message.id)
+
+        recipients = sorted(email.to[0] for email in mail.outbox)
+        self.assertEqual(
+            recipients,
+            sorted([
+                'admin-contact@example.com',
+                'contact-admin@example.com',
+                'contact-librarian@example.com',
+            ]),
+        )
+        self.assertTrue(any('Borrowing concern' in email.subject for email in mail.outbox))
+        self.assertTrue(any('Role: Teacher' in email.body for email in mail.outbox))
+        self.assertTrue(any('Account ID: T-4401' in email.body for email in mail.outbox))
 
     def test_librarian_contact_message_notifies_admin_and_saves_message(self):
         self.client.force_authenticate(user=self.librarian_user)
